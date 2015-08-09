@@ -1,0 +1,73 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
+  <PropertyGroup>
+    <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">11.0</VisualStudioVersion>
+    <VSToolsPath Condition="'$(VSToolsPath)' == ''">$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)</VSToolsPath>
+    <Name>PluginMgr</Name>
+    <RootNamespace>PluginMgr</RootNamespace>
+  </PropertyGroup>
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>73ea9d06-c951-4e25-95cd-7ced3345f766</ProjectGuid>
+    <ProjectHome>.</ProjectHome>
+    <StartupFile>PlugMgr.js</StartupFile>
+    <StartWebBrowser>False</StartWebBrowser>
+    <SearchPath>
+    </SearchPath>
+    <WorkingDirectory>.</WorkingDirectory>
+    <OutputPath>.</OutputPath>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <ProjectTypeGuids>{3AF33F2E-1136-4D97-BBB7-1795711AC8B8};{9092AA53-FB77-4645-B42D-1CCCA6BD08BD}</ProjectTypeGuids>
+    <ProjectView>ShowAllFiles</ProjectView>
+    <StartWebBrowser>False</StartWebBrowser>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="plugins\general\sensors.js" />
+    <Compile Include="plugins\general\stocks.js" />
+    <Compile Include="plugins\general\whatsapp.js" />
+    <Compile Include="plugins\lighting\CBUS.js" />
+    <Compile Include="plugins\plugintemplate.js" />
+    <Compile Include="plugins\power\CurrCost.js" />
+    <Compile Include="plugins\power\solar.js" />
+    <Compile Include="plugins\security\IP Cameras.js" />
+    <Compile Include="plugins\utilities\FTP Helper.js" />
+    <Compile Include="plugins\utilities\SNMP.js" />
+    <Compile Include="plugins\weather\forecast.js" />
+    <Compile Include="plugins\weather\wm918.js" />
+    <Compile Include="plugins\weather\ws2300.js" />
+    <Compile Include="PlugMgr.js" />
+    <Content Include="package.json" />
+    <Content Include="plugins\general\sensors.ini" />
+    <Content Include="plugins\general\stocks.ini" />
+    <Content Include="plugins\general\whatsapp.ini" />
+    <Content Include="plugins\lighting\CBUS.ini" />
+    <Content Include="plugins\power\CurrCost.ini" />
+    <Content Include="plugins\power\Solar.ini" />
+    <Content Include="plugins\security\IP Cameras.ini" />
+    <Content Include="plugins\utilities\FTP Helper.ini" />
+    <Content Include="plugins\utilities\SNMP.ini" />
+    <Content Include="plugins\weather\forecast.ini" />
+    <Content Include="plugins\weather\wm918.ini" />
+    <Content Include="plugins\weather\ws2300.ini" />
+    <Content Include="plugins\plugintemplate.ini" />
+    <Content Include="README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="plugins\" />
+    <Folder Include="plugins\lighting\" />
+    <Folder Include="plugins\general\" />
+    <Folder Include="plugins\power\" />
+    <Folder Include="plugins\security\" />
+    <Folder Include="plugins\utilities\" />
+    <Folder Include="plugins\weather\" />
+  </ItemGroup>
+  <Import Project="$(VSToolsPath)\Node.js Tools\Microsoft.NodejsTools.targets" />
+</Project>

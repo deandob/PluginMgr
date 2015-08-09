@@ -1,0 +1,23 @@
+{
+  "name": "PluginMgr",
+  "version": "0.0.0",
+  "description": "PluginMgr",
+  "main": "app.js",
+  "author": {
+    "name": "deandob",
+    "email": ""
+  },
+  "dependencies": {
+    "0": "0.0.0",
+    "express": "^4.9.0",
+    "ftp": "^0.3.7",
+    "ftp-get": "^0.3.1",
+    "ini": "^1.2.1",
+    "mime": "^1.2.11",
+    "request": "^2.42.0",
+    "serial": "0.0.6",
+    "serialport": "^1.4.6",
+    "ws": "^0.4.32",
+    "xml2js": "^0.4.4"
+  }
+}
