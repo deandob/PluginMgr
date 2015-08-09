@@ -77,4 +77,5 @@ $RECYCLE.BIN/
 #other
 .ntvs_analysis.dat
 *.dll
+*.exe
 
