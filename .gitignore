@@ -73,3 +73,8 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+#other
+.ntvs_analysis.dat
+*.dll
+
