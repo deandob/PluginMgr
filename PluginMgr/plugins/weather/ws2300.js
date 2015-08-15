@@ -2,12 +2,16 @@
 // WS2300 La Crosse Weather Station parser, based on protocol described here: http://www.lavrsen.dk/foswiki/bin/view/Open2300/OpenWSMemoryMap, http://www.lavrsen.dk/foswiki/bin/view/Open2300/OpenWSAPI
 // Some code adopted from https://github.com/wezm/open2300
 // Flow: Send command bytes to read a memory addess one by one and check each returning value checksum. Once command sent successfully, station sends back data bytes.
+
 var serial = require("serialport").SerialPort
 var serialPort;
 var sendQ = [];
-var MSG_TIMEOUT = 150;
+var MSG_TIMEOUT = 500;
+var CHANNEL_GAP = 1000;
+var ERROR_GAP = 100;
 var sendReady = true;
-var currMsg = ""
+var currMsg = "";
+var lastSent;
 
 // GLOBALS FOR WEATHER PLUGIN
 var rainRate = -99;
@@ -19,13 +23,14 @@ var oldData = 0;
 var indoorHumidity = -99, outdoorHumidity = -99, indoorTemp = -99, outdoorTemp = -99, pressure = -99, pressTrend = "", prediction = "", totalRain = -99, gustSpeed = -99
 var gustDir = "", avgSpeed, avgDir = "", chillOutdoorCurrent = -99, dewPtOutdoorCurrent = -99;
 var channel = 0
-var cycle = true;
 var retSum = "";
 var bytesToRecv = 0;
 var recvBuff = new Buffer(10);
 var recvCnt = 0;
-var cmdDataTimeout;
-var queueTimer
+var cmdDataTimer;
+var queueTimer;
+var nextChTimer;
+var retryTimer;
 var retries = 0;
 var directions = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]; 
 
@@ -42,29 +47,29 @@ function startup() {
             }
     });
 
-    serialPort.on("open", function () {
-        fw.log("Serial port open on " + fw.settings.serialport);
-        retryChannel();        
-    });
     serialPort.on("data", recvData)
     serialPort.on("error", function (err) {
         fw.log("ERROR - General serial port error: " + err);
         fw.restart(99);
+    });
+    serialPort.on("open", function () {
+        fw.log("Serial port open on " + fw.settings.serialport);
+        initialize();
+        sendChCommand(0)
     });
        
     return "OK"                                 // Return 'OK' only if startup has been successful to ensure startup errors disable plugin
 }
 
 // Poll the weather station by sending commands to retrieve data for the revelant channel
-function sendCommand(myChannel, myCycle) {
+function sendChCommand(myChannel) {
     retSum = "";
     bytesToRecv = 0;
     channel = myChannel;
 
-    if (myCycle !== undefined) cycle = myCycle;                             // one off command (false) or cycle through all commands in settings (true)
-
     if (!channelSettingsOK()) {
-        nextChannel();
+        clearTimeout(nextChTimer);
+        nextChTimer = setTimeout(nextChannel, CHANNEL_GAP);
         return;
     }
 
@@ -81,21 +86,18 @@ function sendCommand(myChannel, myCycle) {
 function nextChannel() {
     retries = 0;
 
-    if (cycle = true) {
-        initialize();
+    initialize();
 
-        if (fw.channels.length - 1 === channel) {
-            setTimeout(sendCommand, fw.settings.pollinterval * 1000, 0);   // Wait before restarting poll cycle
-        } else {
-            sendCommand(channel + 1);                                      // get the next weather value
-        }
+    if (fw.channels.length - 1 === channel) {
+        setTimeout(sendChCommand, +fw.settings.pollinterval * 1000, 0);   // Wait before restarting poll cycle
+    } else {
+        sendChCommand(channel + 1);                                      // get the next weather value
     }
 }
 
 function recvData(data) {
     if (fw.settings.debug) fw.log(new Date().getSeconds() + ":" + new Date().getMilliseconds() + " received: " + data);
     clearTimeout(queueTimer);                                  // have received something from the last message, so reset command response
-
     for (var i = 0; i < data.length; i++) {
         if (bytesToRecv !== 0) {                        // receiving channel data
             recvBuff[recvCnt] = data[i];
@@ -103,16 +105,23 @@ function recvData(data) {
             bytesToRecv = bytesToRecv - 1;
 
             if (bytesToRecv === 0) {
-                clearTimeout(cmdDataTimeout);                   // Got back all the data I was expecting
+                clearTimeout(cmdDataTimer);                   // Got back all the data I was expecting
 
                 if (data_checksum(recvBuff, fw.channels[channel].attribs[1].value) === +recvBuff[fw.channels[channel].attribs[1].value]) {
+                    sendReady = true;
                     processResult();
                 } else {
                     if (fw.settings.debug) fw.log("WARNING - Incorrect checksum in channel data response: " + fw.channels[channel].name + ". Retrying command")
-                    retryChannel();
+                    clearTimeout(retryTimer);
+                    retryTimer = setTimeout(retryChannel, ERROR_GAP);
+                    return;
                 }
             }
         } else {                                // receiving responses to command bytes
+            if (sendReady === true) {                   // I'm not waiting on a response, so ignore it
+                if (fw.settings.debug) fw.log(new Date().getSeconds() + ":" + new Date().getMilliseconds() + " received: " + data[0] + " but not expecting anything. Ignoring");
+                return;
+            }
             sendReady = true;
 
             if (currMsg !== undefined) {                                                        // No more messages to send if undefined
@@ -125,20 +134,23 @@ function recvData(data) {
                         // we have received all the correct responses for command bytes, so now prepare to receive the command result data
                         bytesToRecv = +fw.channels[channel].attribs[1].value + 1
                         recvCnt = 0;
-                        clearTimeout(cmdDataTimeout)
-                        cmdDataTimeout = setTimeout(dataTimeout, MSG_TIMEOUT)
+                        clearTimeout(cmdDataTimer);
+                        cmdDataTimer = setTimeout(dataTimeout, MSG_TIMEOUT);
                         if (fw.settings.debug) fw.log("Command response for " + fw.channels[channel].name + " received. Looking for data response....")
                         //if (fw.channels[channel].name === "Daily Rain") fw.settings.debugger
                     }
                 } else {
                     if (fw.settings.debug) fw.log("WARNING - Channel " + fw.channels[channel].name + " received wrong command response: " + data[i] + ", expecting " + Number(currMsg.result) + ". Retrying command")
-                    retryChannel();
+                    clearTimeout(retryTimer);
+                    retryTimer = setTimeout(retryChannel, ERROR_GAP);      // ws2300 serial isn't high priority so if get bad response let it finish what it is doing first
+                    return;
                 }
                 sendSerial();                           // send next byte
             } else {
                 if (fw.settings.debug) fw.log("WARNING - Command result '" + retSum + "' isn't the right command response for: " + fw.channels[channel].name + ". Retrying command");
-                retryChannel();
-                break;
+                clearTimeout(retryTimer);
+                retryTimer = setTimeout(retryChannel, ERROR_GAP);
+                return;
             }
         }        
     }
@@ -150,10 +162,11 @@ function retryChannel() {
     initialize();
 
     if (retries < 10) {
-        sendCommand(channel);                
+        sendChCommand(channel);                
     } else {
         fw.log("WARNING - Too many retries for: " + fw.channels[channel].name + ". Skipping channel...");
-        nextChannel();                          // Give up on this channel
+        clearTimer(nextChTimer);
+        nextChTimer = setTimeout(nextChannel, ERROR_GAP);                          // Give up on this channel
     }
  }
 
@@ -176,6 +189,7 @@ function sendSerial(msgArr, result, retries) {
     var msgObj = { "msg": msgArr, "result" : result, "retries" : retries }
 
     if (msgArr !== undefined) {
+        //debugger
         sendQ.push(msgObj)                                          // If a message is specified, push it on the queue for immediate send          
     }
     if (sendReady) {                                                // Wait for acknowledgement from last message sent before sending next message
@@ -192,14 +206,23 @@ function sendPort(sendArr) {
     var buf = new Buffer(sendArr.length);
     for (var i in sendArr) buf.writeUInt8(sendArr[+i], +i);
 
+    if (fw.settings.debug) fw.log(new Date().getSeconds() + ":" + new Date().getMilliseconds() + " sent: " + sendArr)
     serialPort.write(buf, function () {
-        serialPort.drain(function () {                              // When send is completed
-            if (fw.settings.debug) fw.log(new Date().getSeconds() + ":" + new Date().getMilliseconds() + " sent: " + sendArr)
-            clearTimeout(queueTimer);
-            queueTimer = setTimeout(dataTimeout, MSG_TIMEOUT)       // Timeout if we don't get a response
-        });
+        lastSent = sendArr;
+        clearTimeout(queueTimer);
+        queueTimer = setTimeout(respTimeout, MSG_TIMEOUT)       // Timeout if we don't get a response
+//        serialPort.drain(function () {                              // When send is completed
+//        });
     }); 
 }
+
+// Didn't receive responses to a command byte sent.
+function respTimeout() {
+    if (fw.settings.debug) fw.log("WARNING - Timeout receiving response for request '" + lastSent + "'. Retrying request...")
+    retryChannel();
+    //sendPort(lastSent)                                       // send array through serial as bytes
+}
+
 
 // initialize resets WS2300 to cold start (rewind and start over) as well as serial state machine status & counters. Occasionally 0, then 2 is returned.
 function initialize() {
@@ -207,8 +230,12 @@ function initialize() {
     retSum = "";
     bytesToRecv = 0;
     sendReady = true;
+    clearTimeout(cmdDataTimer);
+    clearTimeout(queueTimer);
+    clearTimeout(nextChTimer);
+    clearTimeout(retryTimer);
 
-    for (var i = 0; i < 5; i++) sendSerial([0x06], 0x02, 10)             // send 2 6's initially which resets the station & rewinds to data start
+    for (var i = 0; i < 2; i++) sendSerial([0x06], 0x02, 10)             // send 2 6's initially which resets the station & rewinds to data start
 }
 
 // address_encoder converts an 16 bit address to the form needed by the WS-2300 when sending commands. 3 bytes character array, not zero terminated.
@@ -252,8 +279,7 @@ function data_checksum(data, number) {
 
 // Convert received data into values to send to host
 function processResult() {
-    if (fw.settings.debug) fw.log("Got data for " + fw.channels[channel].name)
-
+    if (fw.settings.debug) fw.log("--> Got data for " + fw.channels[channel].name)
     switch (fw.channels[channel].name) {
         case "Indoor Temperature":
             oldData = indoorTemp;
@@ -267,12 +293,21 @@ function processResult() {
 
         case "Outdoor Temperature":
             oldData = outdoorTemp;
-            if (fw.settings.tempunits.toUpperCase() === "F")
+            if (fw.settings.tempunits.toUpperCase() === "F") {
                 outdoorTemp = Math.round((((((recvBuff[1] >> 4) * 10 + (recvBuff[1] & 0xF) + (recvBuff[0] >> 4) / 10.0 + (recvBuff[0] & 0xF) / 100.0) - 30.0)) * 9 / 5 + 32) * 10) / 10;
-            else
+                if (outdoorTemp > 120) {
+                    fw.log("outdoor temperature " + outdoorTemp + " reading is incorrect. Check battery.")
+                    break;
+                }
+            } else {
                 outdoorTemp = Math.round(((((recvBuff[1] >> 4) * 10 + (recvBuff[1] & 0xF) + (recvBuff[0] >> 4) / 10.0 + (recvBuff[0] & 0xF) / 100.0) - 30.0)) * 10) / 10;
-            if (outdoorTemp > oldData) fw.toHost("Outdoor Temperature", "C", outdoorTemp);
-            if (outdoorTemp < oldData) fw.toHost("Outdoor Temperature", "C", outdoorTemp);
+                if (outdoorTemp > 60) {
+                    fw.log("Outdoor temperature " + outdoorTemp + " reading is incorrect. Check battery.")
+                    break;
+                }
+                if (outdoorTemp > oldData) fw.toHost("Outdoor Temperature", "C", outdoorTemp);
+                if (outdoorTemp < oldData) fw.toHost("Outdoor Temperature", "C", outdoorTemp);
+            }
             break;
 
         case "Indoor Humidity":
@@ -351,7 +386,7 @@ function processResult() {
 
         case "Wind Speed":
             if ((recvBuff[0] != 0x00) || ((recvBuff[1] == 0xFF) && (((recvBuff[2] & 0xF) == 0) || ((recvBuff[2] & 0xF) == 1)))) {
-                fw.log("WARNING - Invalid wind speed registered. Skipping.")
+                fw.log("WARNING - Invalid wind speed registered. " + recvBuff[0] + "," + recvBuff[1] + "," + recvBuff[2] + " Skipping.")
             } else {
                 oldData = gustSpeed
                 gustSpeed = Math.round((((recvBuff[2] & 0xF) << 8) + (recvBuff[1])) / 10.0 * fw.settings.windconvfactor)
