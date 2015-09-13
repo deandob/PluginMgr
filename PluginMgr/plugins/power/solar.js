@@ -5,10 +5,23 @@ var com = require("serialport");
 var serialSolar;
 var CR = "\r";
 var oldData = -99
+var solarCmd = "POUT";
+
+// Changed to open/close serial port (destroying object) each call as serialport module has a bug (thread blocks for a second or 2) with more than 3 serialports open concurrently. No obvious fix
 
 // startup function
 function startup() {
     var startStatus = "OK"
+    
+    setInterval(pollInvPatch, +fw.settings.pollinterval * 1000, "POUT");
+    
+    //startSerialPort();
+    //setInterval(pollInv, +fw.settings.pollinterval * 1000, "POUT");
+    
+    return startStatus
+}
+
+function startSerialPort() {
     serialSolar = new com.SerialPort(fw.settings.comport, {
             baudrate: +fw.settings.baudrate,
             databits: +fw.settings.databits,
@@ -22,42 +35,98 @@ function startup() {
 
     serialSolar.on("open",function() {
         fw.log("Serial port open on " + fw.settings.comport);
+        serialSolar.write(new Buffer(solarCmd + fw.settings.cmdchar + CR), function (err) {
+            if (err) {
+                fw.log("Serial write error: " + err);
+                fw.restart(99);
+            }
+        })
+/*        serialSolar.write(new Buffer(cmd + fw.settings.cmdchar + CR), function (err) {
+            if (err) {
+                fw.log("Serial write error: " + err);
+                fw.restart(99);
+            }
+        }) */
     });
         
     serialSolar.on("data", function(data) {
         serialRecv(data);
     });
     
-    serialSolar.on("error", function(err) {
+    serialSolar.on("error", function (err) {
         fw.log("Serial port general error " + err);
+        startSerialPort();
         fw.restart(99);
     });
-
-    setInterval(pollInv, +fw.settings.pollinterval * 1000, "POUT");
-    //setInterval(pollInv, +fw.settings.pollinterval * 1000, "VIN");
-    
-    return startStatus
 }
 
 function pollInv(cmd) {
-    serialSolar.write(new Buffer(cmd + fw.settings.cmdchar + CR), function (err) {
+    serialSolar.open();
+}
+
+function pollInvPatch(cmd) {
+    if (serialSolar) serialSolar.close();    
+    serialSolar = new com.SerialPort(fw.settings.comport, {
+        baudrate: +fw.settings.baudrate,
+        databits: +fw.settings.databits,
+        stopbits: +fw.settings.stopbits,
+        parity: fw.settings.parity,
+        buffersize: 255
+            //parser: com.parsers.readline('\r\n')
+    }, function (err) {
         if (err) {
-            fw.log("Serial write error: " + err);
-            fw.restart(99);
+            if (serialSolar) serialSolar.close();
+            fw.log(err + ". Cannot open solar serial port, skipping cycle.")
         }
-    })
+    });
+        
+    serialSolar.on("data", function (data) {
+        serialRecvPatch(data);
+    });
+    
+    serialSolar.on("error", function (err) {
+        fw.log("Serial port general error " + err);
+        //debugger
+        //fw.restart(99);
+    });
+ 
+    serialSolar.on("open", function () {
+//        fw.log("Serial port open on " + fw.settings.comport);
+          serialSolar.write(new Buffer(cmd + fw.settings.cmdchar + CR), function (err) {
+            if (err) {
+                fw.log("Serial write error: " + err);
+                //fw.restart(99);
+            }
+          })
+    });
 }
 
 function serialRecv(data) {
+    if (data.length > 0) {
+        var generated = parseInt(data.toString().split(CR)[0])
+        if (generated < fw.settings.changetol) generated = 0                        // ignore any spurious watts generated at night
+        if (Math.abs(generated - oldData) >= fw.settings.changetol) {
+            fw.toHost("Power Out", "W", generated)
+            oldData = generated
+        }
+    }
+}
+
+function serialRecvPatch(data) {
         if (data.length > 0) {
             var generated = parseInt(data.toString().split(CR)[0])
             if (generated < fw.settings.changetol) generated = 0                        // ignore any spurious watts generated at night
             if (Math.abs(generated - oldData) >= fw.settings.changetol) {
                 fw.toHost("Power Out", "W", generated)
                 oldData = generated
-            }
+        }
+        serialSolar.close(closeSerial)
     }
 }        
+
+function closeSerial() {
+    serialSolar = undefined;
+}
 
 //Functions: VIN, VOUT, MEASTEMP, TIME, WHLIFE, KWHTODAY, MPPTSTAT, IIN, IOUT, PIN, POUT.
 

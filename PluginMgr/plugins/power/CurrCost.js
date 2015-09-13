@@ -24,7 +24,7 @@ var sensCh = function () {
 // startup function
 function startup() {
     var startStatus = "OK"
-    serialPower = new com.SerialPort(fw.settings.comport, {
+    serialPower = new com.SerialPort("\\\\.\\" + fw.settings.comport, {
             baudrate: +fw.settings.baudrate,
             databits: +fw.settings.databits,
             stopbits: +fw.settings.stopbits,
@@ -59,8 +59,8 @@ function startup() {
             }
         }
     }
-
-    serialPower.on("open",function() {
+    
+    serialPower.on("open", function () {
         fw.log("Serial port open on " + fw.settings.comport);
     });
         
@@ -72,7 +72,6 @@ function startup() {
         fw.log("Serial port error " + err);
         fw.restart(99);
     });
-
     return startStatus
 }
 
@@ -83,10 +82,10 @@ function serialRecv(data) {
         var recvSens
         if (data.length > 0) {
             var tt = data.toString()
-            //fw.log("received power Msg: " + data.toString());
+            if (fw.settings.debug) fw.log("received power Msg: " + data.toString());
             if (data.toString().substr(0, 5) === "<msg>" && data.length < 255)
             {
-             // history data will overflow serial input buffer so will receive history data in parts, so ignore fragments
+                // history data will overflow serial input buffer so will receive history data in parts, so ignore fragments
                 parseXML(data, function (err, XMLDoc) {
                     if (err) {
                         fw.log("Error occurred parsing power XML " + data + ". Error: " + err);

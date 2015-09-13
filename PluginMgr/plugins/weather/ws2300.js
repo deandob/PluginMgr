@@ -120,6 +120,8 @@ function recvData(data) {
         } else {                                // receiving responses to command bytes
             if (sendReady === true) {                   // I'm not waiting on a response, so ignore it
                 if (fw.settings.debug) fw.log(new Date().getSeconds() + ":" + new Date().getMilliseconds() + " received: " + data[0] + " but not expecting anything. Ignoring");
+                clearTimeout(retryTimer);
+                retryTimer = setTimeout(retryChannel, ERROR_GAP);
                 return;
             }
             sendReady = true;
@@ -165,7 +167,7 @@ function retryChannel() {
         sendChCommand(channel);                
     } else {
         fw.log("WARNING - Too many retries for: " + fw.channels[channel].name + ". Skipping channel...");
-        clearTimer(nextChTimer);
+        clearTimeout(nextChTimer);
         nextChTimer = setTimeout(nextChannel, ERROR_GAP);                          // Give up on this channel
     }
  }

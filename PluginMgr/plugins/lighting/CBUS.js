@@ -245,6 +245,7 @@ function sendCBUS(grpNum, newVal, rampTime) {
 // Receive: <Header><originator address><Application><Options><function><group><chkSum><cr>. Same as send except originator is the source ID and can be ignored
 // Confirmation received after the 'g': "." success, "!" checksum fail, "#" too many retransmissions, "$" transmission failed, "%" no system clock. eg. "g." = success
 function serialRecv(data) {
+    //debugger
         var sourceAddr, hexByte, grp, func
 
         if (data.length > 0) {

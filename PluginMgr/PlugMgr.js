@@ -615,10 +615,9 @@ function startRemote() {
                 status("SYSTEM/NETWORK", "Error with connection to remote client: " + evt.message);
             });
             locWs.on("close", function (evt) {
-                status("SYSTEM/NETWORK", "session with remote client closed: " + evt.message);
+                status("SYSTEM/NETWORK", "session with remote client closed");
                 remClientState = "closed"
             });
-            //setInterval(checkRemSvrStatus, 10000);         // Check if alive
         });
         
         remWs.on("message", function (data, flags)
@@ -644,16 +643,12 @@ function startRemote() {
                 status("SYSTEM/NETWORK", "Cloud host network closed: " + evt);
             }
             remoteState = "closed"
-            setTimeout(startRemote, 2000);          // Try again after a delay
+            locWs.close();                          // disconnect local Server session 
+            setTimeout(startRemote, 3000);          // Try again after a delay
         });
 
 
     } catch (exception) { status("SYSTEM/NETWORK", "ERROR - General Remote connection network error was reported: " + exception); }
-}
-
-function checkRemSvrStatus() {
-    status("SYSTEM/NETWORK", "Remote Server Status: " + remWs.readyState);
-    //if (remWs.readyState === 1) remWs.send("PING");
 }
 
 //////////////// Utilities
