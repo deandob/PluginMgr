@@ -39,6 +39,7 @@
     <Compile Include="plugins\power\solar.js" />
     <Compile Include="plugins\security\IP Cameras.js" />
     <Compile Include="plugins\utilities\FTP Helper.js" />
+    <Compile Include="plugins\utilities\Net Speed.js" />
     <Compile Include="plugins\utilities\SNMP.js" />
     <Compile Include="plugins\weather\forecast.js" />
     <Compile Include="plugins\weather\wm918.js" />
@@ -53,6 +54,7 @@
     <Content Include="plugins\power\Solar.ini" />
     <Content Include="plugins\security\IP Cameras.ini" />
     <Content Include="plugins\utilities\FTP Helper.ini" />
+    <Content Include="plugins\utilities\Net Speed.ini" />
     <Content Include="plugins\utilities\SNMP.ini" />
     <Content Include="plugins\weather\forecast.ini" />
     <Content Include="plugins\weather\wm918.ini" />
