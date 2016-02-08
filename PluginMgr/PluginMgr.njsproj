@@ -30,6 +30,7 @@
     <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="plugins\general\IO.js" />
     <Compile Include="plugins\general\sensors.js" />
     <Compile Include="plugins\general\stocks.js" />
     <Compile Include="plugins\general\whatsapp.js" />
@@ -44,8 +45,10 @@
     <Compile Include="plugins\weather\forecast.js" />
     <Compile Include="plugins\weather\wm918.js" />
     <Compile Include="plugins\weather\ws2300.js" />
+    <Compile Include="PlugMgr old.js" />
     <Compile Include="PlugMgr.js" />
     <Content Include="package.json" />
+    <Content Include="plugins\general\IO.ini" />
     <Content Include="plugins\general\sensors.ini" />
     <Content Include="plugins\general\stocks.ini" />
     <Content Include="plugins\general\whatsapp.ini" />

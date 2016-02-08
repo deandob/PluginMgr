@@ -55,7 +55,7 @@ function startup() {
 
     serialCBUS.on("open",function() {
         fw.log("Serial port open on " + fw.settings.comport);
-
+        //debugger
         getTags()
 
         // Initialise CBUS. Don't get additional network info, and don't receive regular MMI messages (request sync each hour)
@@ -71,6 +71,7 @@ function startup() {
     });
         
     serialCBUS.on("data", function (data) {
+        //debugger
         serialRecv(data);
     });
     
@@ -412,7 +413,7 @@ function serialRecv(data) {
 }
 
 // Process host messages
-exports.fromHost = function fromHost(channel, scope, data) {
+function fromHost(channel, scope, data) {
     switch (scope.toUpperCase()) {
         case "CMD":                  // command
                 if (data === "ALLOFF") {
@@ -445,23 +446,35 @@ exports.fromHost = function fromHost(channel, scope, data) {
 }
 
 // Shutdown the plugin. Insert any orderly shutdown code needed here
-exports.shutPlugin = function shutPlugin(param) {
+function shutPlugin(param) {
     serialCBUS.close();
     return "OK"
 }
 
-// Initialize the plugin - DO NOT MODIFY THIS FUNCTION
+// Initialize the plugin -------------- DO NOT MODIFY THIS SECTION
 var fw = new Object();
-exports.loaded = function(iniCat, iniName, iniChannels, iniSettings, iniStore) {
-    fw.cat = iniCat;
-    fw.plugName = iniName;
-    fw.channels = iniChannels;
-    fw.settings = iniSettings;
-    fw.store = iniStore;
-    fw.restart = function (code) { module.parent.exports.restart(code) };
-    fw.log = function (msg) { module.parent.exports.log(fw.cat + "/" + fw.plugName, msg) };
-    fw.toHost = function (myChannel, myScope, myData, myLog) {module.parent.exports.toHost(fw.cat, fw.plugName, myChannel, myScope, myData, myLog)};
-    fw.addChannel = function (name, desc, type, io, min, max, units, attribs, value, store) {module.parent.exports.addChannel(fw.cat, fw.plugName, name, desc, type, io, min, max, units, attribs, value, store)};
-    return startup();
-}
-
+process.on('message', function (msg) {
+    var retval;
+    switch (msg.func.toLowerCase()) {
+        case "init":
+            fw.cat = msg.data.cat;
+            fw.plugName = msg.data.name;
+            fw.channels = msg.data.channels;
+            fw.settings = msg.data.settings;
+            fw.store = msg.data.store;
+            fw.restart = function (code) { process.send({ func: "restart", data: code }); };
+            fw.log = function (msg) { process.send({ func: "log", cat: fw.cat, name: fw.plugName, log: msg }); };
+            fw.toHost = function (myChannel, myScope, myData, myLog) { process.send({ func: "tohost", cat: fw.cat, name: fw.plugName, channel: myChannel, scope: myScope, data: myData, log: myLog }); };
+            fw.addChannel = function (name, desc, type, io, min, max, units, attribs, value, store) { process.send({ func: "addch", cat: fw.cat, name: fw.plugName, channel: name, scope: desc, data: { type: type, io: io, min: min, max: max, units: units, attribs: attribs, value: value, store: store }}); };
+            fw.writeIni = function (section, subSection, key, value) { process.send({ func: "writeini", cat: fw.cat, name: fw.plugName, data: { section: section, subSection: subSection, key: key, value: value }}); };
+            retval = startup();
+            break;
+        case "fromhost":
+            retval = fromHost(msg.channel, msg.scope, msg.data)
+            break;
+        case "shutdown":
+            retval = shutPlugin(msg.data);
+            break;
+    }
+    process.send({ func: msg.func, cat: fw.cat, name: fw.plugName, data: retval });
+});

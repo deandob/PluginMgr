@@ -7,8 +7,9 @@ var path = require("path");
 var http = require("http");
 var url = require("url");
 var ini = require("ini");                       // https://github.com/isaacs/ini
-var fork = require('child_process').fork;
-global._serverName = require("os").hostname();
+//var fork = require('child_process').fork;
+var domain = require("domain")
+global.serverName = require("os").hostname();
 var started = false
 var iniMsgs = []
 var categories;
@@ -28,7 +29,7 @@ global._network = function getNetwork() {
 }
 
 var plugins = [];
-var plugin = function (category, className, desc, status, channels, recvFunc, enabled) {
+var plugin = function (category, className, desc, status, channels, recvFunc, domain, enabled) {
     this.category = category;
     this.className = className
     this.type = "NODEJS"
@@ -36,6 +37,7 @@ var plugin = function (category, className, desc, status, channels, recvFunc, en
     this.status = status;
     this.channels = channels;
     this.recvFunc = recvFunc;
+    this.domain = domain;
     this.enabled = enabled;
     this.lastMsg = {instance: "", scope: "", data: ""};
 }
@@ -58,25 +60,14 @@ var chAttrib = function (name, type, value) {
     this.value = value;
 }
 
-process.on("uncaughtException", function(err) {
-    console.dir("Caught an unhandled exception: " + err + " " + err.stack);
-});
+var domains = [];
+
+//process.on("uncaughtException", function(err) {
+//    console.dir("Caught an unhandled exception: " + err + " " + err.stack);
+//});
 
 /////////////////////////// Plugins
 // Load plugins
-
-var debugPort = 5858;
-var startOpts = {};
-var isInDebugMode = typeof v8debug === 'object';
-
-//try {
-//    var xxx = fork("xxx.js", [], { execArgv: ['--debug=' + debugPort + 1] });
-//    xxx.on('message', function (msg) { console.log("----------------- " + msg.retval); });
-//    xxx.send({ func: "init", param0: "general" , param1: "testplug", param2: "channels", param3: "settings", param4: "store" })
-//} catch (e) {
-//    console.log("ERROR - plugin module can't load")
-//}
-
 var pluginDir = "plugins";          //TODO: Put into INI file
 function loadPlugins() {
     try {
@@ -95,90 +86,95 @@ function loadPlugins() {
                                                               // Loop through files in category directory
                     var pluginFile = pluginFiles[plugNum];
                     
-                    if (pluginFile.substr(pluginFile.length - 3) === ".js") {
-                        // look for javascript files
-                        //var initPlug = require("./" + path.join(catDir, pluginFile));
-                        debugPort = debugPort + 1;
-                        if (isInDebugMode) startOpts = { execArgv: ['--debug=' + debugPort] };
-                        var initPlug = fork("./" + path.join(catDir, pluginFile), [], startOpts);                       // Create child process (13M per plugin) for isolation
-                        
+                    if (pluginFile.substr(pluginFile.length - 3) === ".js")
+                    {
+                                   // look for javascript files
+                        var initPlug = require("./" + path.join(catDir, pluginFile));
                         var pluginName = pluginFile.replace(".js", "");
                         
-                        var channels = [];
-                        try {
-                            var iniFile = path.join("plugins", categories[catNum].Cat, pluginName + ".ini");             // get plugin configuration from ini file
-                            if (fs.existsSync(iniFile)) {
-                                var myFile = fs.readFileSync(iniFile, "utf-8")
-                                var myIni = ini.parse(myFile)
-                                var iniCfg = toLowerKey(myIni)
-                                if (iniCfg.desc === undefined)                                                         // TODO: BUG IN INI ROUTINE, SOMETIMES RETURNS FIRST SECTION AS TRUE NOT AN ARRAY
-                                {
-                                    iniCfg.desc = toLowerKey(iniCfg.plugincfg).desc
-                                    iniCfg.enabled = toLowerKey(iniCfg.plugincfg).enabled
-                                }
-                                var genSettings = toLowerKey(iniCfg.general)
-                                var store = toLowerKey(iniCfg.store)
-                                
-                                // extract channel info
-                                for (var chNum = 0; true; chNum++) {
-                                    var ch = toLowerKey(iniCfg["channel" + chNum]);                                      // make keys lower case
-                                    if (ch === undefined) break;                                                        // loop until no more channels are found
-                                    var attribs = [];
-                                    for (var attribNum = 0; true; attribNum++) {
-                                        var attrib = toLowerKey(iniCfg["channel" + chNum]["attrib" + attribNum]);        // attribs found in section [channel#.attrib#]
-                                        if (attrib === undefined) break;                                                // loop extracting all channel attribute info
-                                        attribs.push(new chAttrib(attrib.name, attrib.type.toUpperCase(), attrib.value));
+                        if (typeof (initPlug.loaded) === "function") {                                                      // valid plugin?
+                            var channels = [];
+                            try {
+                                var iniFile = path.join("plugins", categories[catNum].Cat, pluginName + ".ini");             // get plugin configuration from ini file
+                                if (fs.existsSync(iniFile)) {
+                                    var myFile = fs.readFileSync(iniFile, "utf-8")
+                                    var myIni = ini.parse(myFile)
+                                    var iniCfg = toLowerKey(myIni)
+                                    if (iniCfg.desc === undefined)                                                         // TODO: BUG IN INI ROUTINE, SOMETIMES RETURNS FIRST SECTION AS TRUE NOT AN ARRAY
+                                    {
+                                        iniCfg.desc = toLowerKey(iniCfg.plugincfg).desc
+                                        iniCfg.enabled = toLowerKey(iniCfg.plugincfg).enabled
                                     }
-                                    channels.push(new channel(ch.name, ch.desc, ch.type, ch.io, ch.min, ch.max, ch.units, attribs));
+                                    var genSettings = toLowerKey(iniCfg.general)
+                                    var store = toLowerKey(iniCfg.store)
+                                    
+                                    // extract channel info
+                                    for (var chNum = 0; true; chNum++) {
+                                        var ch = toLowerKey(iniCfg["channel" + chNum]);                                      // make keys lower case
+                                        if (ch === undefined) break;                                                        // loop until no more channels are found
+                                        var attribs = [];
+                                        for (var attribNum = 0; true; attribNum++) {
+                                            var attrib = toLowerKey(iniCfg["channel" + chNum]["attrib" + attribNum]);        // attribs found in section [channel#.attrib#]
+                                            if (attrib === undefined) break;                                                // loop extracting all channel attribute info
+                                            attribs.push(new chAttrib(attrib.name, attrib.type.toUpperCase(), attrib.value));
+                                        }
+                                        channels.push(new channel(ch.name, ch.desc, ch.type, ch.io, ch.min, ch.max, ch.units, attribs));
+                                    }
                                 }
+                            } catch (e) {
+                                status("SYSTEM/PLUGINS", "Error processing plugin configuration: " + categories[catNum].Cat.toUpperCase() + ":" + pluginName + ", error message: " + e.stack)
                             }
                             if (iniCfg.enabled === true) {
-                                try {
-                                    plugins.push(new plugin(categories[catNum].Cat.toUpperCase(), pluginName, iniCfg.desc, "LOADED", channels, initPlug, iniCfg.enabled));        // loaded OK so save plugin cfg (if no config found most of plugincfg is undefined but still valid)
-                                    plugins[plugins.length - 1].recvFunc.on('message', function (msg) { toHost(msg.func, msg.cat, msg.name, msg.channel, msg.scope, msg.data, msg.log); });                                   
-                                    plugins[plugins.length - 1].recvFunc.on('exit', function (code, signal) { childEnded("exit", code, signal); });
-                                    plugins[plugins.length - 1].recvFunc.on('close', function (code, signal) { childEnded("close", code, signal); });
-                                    plugins[plugins.length - 1].recvFunc.on('error', function (err) { childEnded("error", err); });
-                                    plugins[plugins.length - 1].recvFunc.on('disconnect', function () { childEnded("disconnect"); });
-                                    if (plugins[plugins.length - 1].recvFunc.send({ func: "init", channel: "", scope: "", data: { cat: categories[catNum].Cat.toUpperCase(), name: pluginName, channels: channels, settings: genSettings, store: store } }) === false) { // start plugin & pass in config info
-                                        status("SYSTEM/PLUGINS", "Can't communicate with child plugin '" + pluginName + "'. Plugin will be disabled.");
-                                        killChild(plugins.length - 1);
-                                    };  
-                                } catch (e) {
-                                    status("SYSTEM/PLUGINS", "Plugin startup error in '" + pluginName + "'. Plugin will be disabled. Error: " + e.stack);
-                                    killChild(plugins.length - 1);
-                                }
+                                    try {
+                                        plugins.push(new plugin(categories[catNum].Cat.toUpperCase(), pluginName, iniCfg.desc, "LOADED", channels, initPlug, domains[pluginName], iniCfg.enabled));        // loaded OK so save plugin cfg (if no config found most of plugincfg is undefined but still valid)
+                                        var plugStatus = initPlug.loaded(categories[catNum].Cat.toUpperCase(), pluginName, channels, genSettings, store)// start plugin & pass in config info
+                                        if (plugStatus === "OK") {
+                                            status(categories[catNum].Cat.toUpperCase() + "/" + pluginName.toUpperCase(), "Plugin loaded and started.")
+                                        } else {
+                                            status("SYSTEM/PLUGINS", "Plugin startup error in '" + pluginName + "'. Plugin will be disabled. Error: " + plugStatus);
+                                            delete require.cache[require.resolve("./" + path.join(catDir, pluginFile))];        // remove plugins that don't work
+                                        }
+                                    } catch (e) {
+                                        status("SYSTEM/PLUGINS", "Plugin startup error in '" + pluginName + "'. Plugin will be disabled. Error: " + e.stack);
+                                        delete require.cache[require.resolve("./" + path.join(catDir, pluginFile))];        // remove plugins that don't work
+                                    }
+                                //domains[pluginName] = domain.create();
+                                //(function (pluginName) {
+                                //    domains[pluginName].on("error", function (error) {
+                                //        status("[SYSTEM/PLUGINS] Plugin runtime error in '" + pluginName + "'. Plugin will be disabled. Error: " + error.stack);
+                                //        delete require.cache[require.resolve("./" + path.join(catDir, pluginFile))];        // remove plugins that don't work
+                                //    })
+                                //})(pluginName);                                     // closure to capture plugin name that caused the error
+                                //domains[pluginName].run(function () {
+                                //    try {
+                                //        plugins.push(new plugin(categories[catNum].Cat.toUpperCase(), pluginName, iniCfg.desc, "LOADED", channels, initPlug, domains[pluginName], iniCfg.enabled));        // loaded OK so save plugin cfg (if no config found most of plugincfg is undefined but still valid)
+                                //        var plugStatus = initPlug.loaded(categories[catNum].Cat.toUpperCase(), pluginName, channels, genSettings, store)// start plugin & pass in config info
+                                //        if (plugStatus === "OK") {
+                                //            status(categories[catNum].Cat.toUpperCase() + "/" + pluginName.toUpperCase() + " plugin loaded and started.")
+                                //        } else {
+                                //            status("[SYSTEM/PLUGINS] Plugin startup error in '" + pluginName + "'. Plugin will be disabled. Error: " + plugStatus);
+                                //            delete require.cache[require.resolve("./" + path.join(catDir, pluginFile))];        // remove plugins that don't work
+                                //        }
+                                //    } catch (e) {
+                                //        status("[SYSTEM/PLUGINS] Plugin startup error in '" + pluginName + "'. Plugin will be disabled. Error: " + e.stack);
+                                //        delete require.cache[require.resolve("./" + path.join(catDir, pluginFile))];        // remove plugins that don't work
+                                //    }
+                                //});
                             }
-                        } catch (e) {
-                            status("SYSTEM/PLUGINS", "Plugin load error in '" + pluginName + "'. Plugin will be disabled. Error: " + plugStatus);
-                            killChild(plugins.length - 1);                        }
-                    } 
+                        } else {
+                            delete require.cache[require.resolve("./" + path.join(catDir, pluginFile))];        // not a valid plugin
+                        }
+                    }
                 }
             }
         }
-        var stripRef = [];
-        for (var plug in plugins) stripRef.push(new plugin(plugins[plug].category, plugins[plug].className, plugins[plug].desc, plugins[plug].status, plugins[plug].channels, "", plugins[plug].enabled));
-        actionSend("SYSTEM", "NETWORK", "PLUGINS", "INIT", JSON.stringify(stripRef))
+        actionSend("SYSTEM", "NETWORK", "PLUGINS", "INIT", JSON.stringify(plugins))
         started = true                                                              // enable sending host messages & send any messages sent during plugin startup but before plugin was registered
-        for (var lp = 0; lp < iniMsgs.length; lp++) {
-            toHost("tohost", iniMsgs[lp].cat, iniMsgs[lp].name, iniMsgs[lp].channel, iniMsgs[lp].scope, iniMsgs[lp].data);
-        }
+        for (var lp = 0; lp < iniMsgs.length; lp++) exports.toHost(iniMsgs[lp].cat, iniMsgs[lp].name, iniMsgs[lp].channel, iniMsgs[lp].scope, iniMsgs[lp].data)     
     } catch (e) {
-        status("SYSTEM/PLUGINS", "ERROR: Plugin loading error, plugins may be unstable... " + e.stack);        
+        status("SYSTEM/PLUGINS", "ERROR: Plugin loading error " + e.stack);        
     }
-}
 
-// Handle child plugin when ending abnormally
-function childEnded(func, param0, param1) {
-    // HOW DO I KNOW WHAT PLUGIN ENDED?
-
-    status("SYSTEM/PLUGINS", "ERROR: Plugin ended as '" + func + "' code: " + param0 + " signal: " + param1);
-}
-
-// Kill the child process when in error
-function killChild(num) {
-    plugins[num].recvFunc.kill();
-    plugins.slice(num);
 }
 
 function loadIniArrays(fileLoc) {
@@ -197,40 +193,8 @@ function shutPlugins() {
 }
 
 //////////////////////////////////////// Exports
-// plugins call to send host messages
-function toHost(func, cat, name, channel, scope, data, log) {
-    //TODO: Dont accept messages from plugins that didnt start properly
-    switch (func) {
-        case "init":
-            status(cat.toUpperCase() + "/" + name.toUpperCase(), "Plugin loaded and started with status: " + data);
-            //TODO: If data != OK, kill the plugin            
-            break;
-        case "tohost":
-            if (started === false) {
-                // save for future send any ini messages sent during startup until the plugins have all been registered
-                iniMsgs.push({ "cat": cat, "name": name, "channel": channel, "scope": scope, "data": data, "log": log });
-                return;
-            } else {
-                return eventSend(cat, name, channel, scope, data, log);
-            }
-            break;
-        case "restart":
-            restart(data);
-            break;
-        case "log":
-            writeLog(cat.toUpperCase() + "/" + name.toUpperCase(), log);
-            break;
-        case "addch":
-            addChannel(cat, name, channel, scope, data.type, data.io, data.min, data.max, data.units, data.attribs, data.value, data.store);
-            break;
-        case "writeini":
-            writeIni(cat, name, data.section, data.subSection, data.key, data.value);
-            break;
-    }    
-}
-
 // Dynamically add channel 
-function addChannel(cat, plugName, name, desc, type, io, min, max, units, attribs, value, store) {
+exports.addChannel = function addChannel(cat, plugName, name, desc, type, io, min, max, units, attribs, value, store) {
     for (var myPlug in plugins) {
         if (plugins[myPlug].category.toUpperCase() === cat.toUpperCase() && plugins[myPlug].className.toUpperCase() === plugName.toUpperCase()) {
             if (attribs === undefined) var attribs = []
@@ -242,20 +206,32 @@ function addChannel(cat, plugName, name, desc, type, io, min, max, units, attrib
     }
 }
 
+// plugins call to send host messages
+exports.toHost = function toHost(cat, name, channel, scope, data, log) {
+    //TODO: Dont accept messages from plugins that didnt start properly
+    if (started === false)
+    {
+                            // save for future send any ini messages sent during startup until the plugins have all been registered
+        iniMsgs.push({ "cat": cat, "name": name, "channel": channel, "scope": scope, "data": data, "log": log });
+        return;
+    } else {
+        return eventSend(cat, name, channel, scope, data, log);
+    }
+}
+
 // failure of the plugin, request restart (all plugins restarted)
-function restart(code) {
-    //TODO: Only the plugin
+exports.restart = function restart(code) {
     status("SYSTEM/PLUGINS", "Restart request. Error code: " + code);
     process.exit(code);            // >0 causes restart
 }
 
 // display on the console or log
-function writeLog(caller, msg) {
+exports.log = function log(caller, msg) {
     status(caller, msg);
 }
 
 // Update a plugin INI file
-function writeIni(category, className, section, subSection, key, value) {
+exports.writeIni = function writeIni(category, className, section, subSection, key, value) {
     try {
         var iniLoc = path.join("plugins", category, className + ".ini");
         if (fs.existsSync(iniLoc)) {                                                                        // get files in all category directories
@@ -283,9 +259,9 @@ function pluginMsg(msg) {
     for (var plugNum in plugins) {
         if (plugins[plugNum].className.toUpperCase() === msg.ClassName.toUpperCase()) {
             if (plugins[plugNum].category.toUpperCase() === msg.Category.toUpperCase()) {
-                if (plugins[plugNum].lastMsg.instance !== msg.Instance || plugins[plugNum].lastMsg.scope !== msg.Scope || plugins[plugNum].lastMsg.data !== msg.Data) {  // Don't echo message just sent to the same plugin
-                    return plugins[plugNum].recvFunc.send({ func: "fromhost", channel: msg.Instance, scope: msg.Scope, data: msg.Data });
-                }                    
+                if (plugins[plugNum].lastMsg.instance !== msg.Instance || plugins[plugNum].lastMsg.scope !== msg.Scope || plugins[plugNum].lastMsg.data !== msg.Data)   // Don't echo message just sent to the same plugin
+                    return plugins[plugNum].recvFunc.fromHost(msg.Instance, msg.Scope, msg.Data);
+                //else status("XXXXXX", "######################################### " + msg.Instance + " ### " + msg.Scope + " ### " + msg.Data)
             }
         }
     }
@@ -458,7 +434,7 @@ var templMsg = {
 startNet();
 
 function startNet() {
-    ws = new WebSocket("ws://" + _serverName + ":" + wsPort);
+    ws = new WebSocket("ws://" + serverName + ":" + wsPort);
     try {
         ws.on("open", function () {
             netState = "connected"
@@ -522,11 +498,11 @@ function startNet() {
                 case func.action:
                     break;
                 case func.event:
-                    //try {
+                    try {
                         pluginMsg(msg)
-                    //} catch (e) {
-                    //    status("SYSTEM/NETWORK", "ERROR: Can't send message (" + msg.ClassName + "/" + msg.Instance + " " + msg.Data + ") to plugin. Error: " + e)
-                    //}
+                    } catch (e) {
+                        status("SYSTEM/NETWORK", "ERROR: Can't send message (" + msg.ClassName + "/" + msg.Instance + " " + msg.Data + ") to plugin. Error: " + e)
+                    }
                     break;
                 case func.error:
                     alert("Error received from Server: " + msg.Data)
@@ -622,7 +598,7 @@ function startRemote() {
             remoteState = "connected"
             status("SYSTEM/NETWORK", "Connected to remote Host. Waiting for remote connections")
             user = "local_machine"
-            locWs = new WebSocket("ws://" + _serverName + ":" + wsPortClient);
+            locWs = new WebSocket("ws://" + serverName + ":" + wsPortClient);
             locWs.on("open", function () {
                 remClientState = "session"
                 status("SYSTEM/NETWORK", "Session with local host setup for transferring messages from remote")
