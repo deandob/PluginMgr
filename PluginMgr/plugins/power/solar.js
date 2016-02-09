@@ -162,11 +162,11 @@ process.on('message', function (msg) {
             retval = startup();
             break;
         case "fromhost":
-            retval = fromHost(msg.param0, msg.param1, msg.param2)
+            retval = fromHost(msg.channel, msg.scope, msg.data)
             break;
         case "shutdown":
-            retval = shutPlugin(msg.param0);
+            retval = shutPlugin(msg.data);
             break;
     }
-    process.send({ func: msg.func, cat: fw.cat, name: fw.plugName, data: retval });
+    process.send({ func: msg.func, cat: fw.cat, name: fw.plugName, data: retval, log: process.execArgv[0] });
 });

@@ -476,5 +476,5 @@ process.on('message', function (msg) {
             retval = shutPlugin(msg.data);
             break;
     }
-    process.send({ func: msg.func, cat: fw.cat, name: fw.plugName, data: retval });
+    process.send({ func: msg.func, cat: fw.cat, name: fw.plugName, data: retval, log: process.execArgv[0] });
 });

@@ -28,7 +28,7 @@ global._network = function getNetwork() {
 }
 
 var plugins = [];
-var plugin = function (category, className, desc, status, channels, recvFunc, enabled) {
+var plugin = function (category, className, desc, status, channels, recvFunc, enabled, genSettings, store, catDir) {
     this.category = category;
     this.className = className
     this.type = "NODEJS"
@@ -37,6 +37,9 @@ var plugin = function (category, className, desc, status, channels, recvFunc, en
     this.channels = channels;
     this.recvFunc = recvFunc;
     this.enabled = enabled;
+    this.genSettings = genSettings;
+    this.store = store;
+    this.catDir = catDir;
     this.lastMsg = {instance: "", scope: "", data: ""};
 }
 
@@ -69,41 +72,19 @@ var debugPort = 5858;
 var startOpts = {};
 var isInDebugMode = typeof v8debug === 'object';
 
-//try {
-//    var xxx = fork("xxx.js", [], { execArgv: ['--debug=' + debugPort + 1] });
-//    xxx.on('message', function (msg) { console.log("----------------- " + msg.retval); });
-//    xxx.send({ func: "init", param0: "general" , param1: "testplug", param2: "channels", param3: "settings", param4: "store" })
-//} catch (e) {
-//    console.log("ERROR - plugin module can't load")
-//}
-
 var pluginDir = "plugins";          //TODO: Put into INI file
 function loadPlugins() {
     try {
-        for (var catNum in categories)
-        {
-                                                                        // loop through all categories
+        for (var catNum in categories) {                                                                        // loop through all categories
             var catDir = path.join(pluginDir, categories[catNum].Cat);
-            
-            if (fs.existsSync(catDir))
-            {
-                                                                        // get files in all category directories
+            if (fs.existsSync(catDir)) {
                 var pluginFiles = fs.readdirSync(catDir);
-                
-                for (var plugNum in pluginFiles)
-                {
+                for (var plugNum in pluginFiles) {
                                                               // Loop through files in category directory
                     var pluginFile = pluginFiles[plugNum];
                     
-                    if (pluginFile.substr(pluginFile.length - 3) === ".js") {
-                        // look for javascript files
-                        //var initPlug = require("./" + path.join(catDir, pluginFile));
-                        debugPort = debugPort + 1;
-                        if (isInDebugMode) startOpts = { execArgv: ['--debug=' + debugPort] };
-                        var initPlug = fork("./" + path.join(catDir, pluginFile), [], startOpts);                       // Create child process (13M per plugin) for isolation
-                        
+                    if (pluginFile.substr(pluginFile.length - 3) === ".js") {                        // look for javascript files                        
                         var pluginName = pluginFile.replace(".js", "");
-                        
                         var channels = [];
                         try {
                             var iniFile = path.join("plugins", categories[catNum].Cat, pluginName + ".ini");             // get plugin configuration from ini file
@@ -132,23 +113,7 @@ function loadPlugins() {
                                     channels.push(new channel(ch.name, ch.desc, ch.type, ch.io, ch.min, ch.max, ch.units, attribs));
                                 }
                             }
-                            if (iniCfg.enabled === true) {
-                                try {
-                                    plugins.push(new plugin(categories[catNum].Cat.toUpperCase(), pluginName, iniCfg.desc, "LOADED", channels, initPlug, iniCfg.enabled));        // loaded OK so save plugin cfg (if no config found most of plugincfg is undefined but still valid)
-                                    plugins[plugins.length - 1].recvFunc.on('message', function (msg) { toHost(msg.func, msg.cat, msg.name, msg.channel, msg.scope, msg.data, msg.log); });                                   
-                                    plugins[plugins.length - 1].recvFunc.on('exit', function (code, signal) { childEnded("exit", code, signal); });
-                                    plugins[plugins.length - 1].recvFunc.on('close', function (code, signal) { childEnded("close", code, signal); });
-                                    plugins[plugins.length - 1].recvFunc.on('error', function (err) { childEnded("error", err); });
-                                    plugins[plugins.length - 1].recvFunc.on('disconnect', function () { childEnded("disconnect"); });
-                                    if (plugins[plugins.length - 1].recvFunc.send({ func: "init", channel: "", scope: "", data: { cat: categories[catNum].Cat.toUpperCase(), name: pluginName, channels: channels, settings: genSettings, store: store } }) === false) { // start plugin & pass in config info
-                                        status("SYSTEM/PLUGINS", "Can't communicate with child plugin '" + pluginName + "'. Plugin will be disabled.");
-                                        killChild(plugins.length - 1);
-                                    };  
-                                } catch (e) {
-                                    status("SYSTEM/PLUGINS", "Plugin startup error in '" + pluginName + "'. Plugin will be disabled. Error: " + e.stack);
-                                    killChild(plugins.length - 1);
-                                }
-                            }
+                            if (iniCfg.enabled === true) startPlugin(new plugin(categories[catNum].Cat.toUpperCase(), pluginName, iniCfg.desc, "LOADED", channels, "", iniCfg.enabled, genSettings, store, catDir))
                         } catch (e) {
                             status("SYSTEM/PLUGINS", "Plugin load error in '" + pluginName + "'. Plugin will be disabled. Error: " + plugStatus);
                             killChild(plugins.length - 1);                        }
@@ -168,17 +133,46 @@ function loadPlugins() {
     }
 }
 
-// Handle child plugin when ending abnormally
-function childEnded(func, param0, param1) {
-    // HOW DO I KNOW WHAT PLUGIN ENDED?
+// Add plugin and start
+function startPlugin(plug) {
+    try {
+        status("SYSTEM/PLUGINS", "Starting child plugin " + plug.className + "...");
+        debugPort = debugPort + 1;
+        if (isInDebugMode) startOpts = { execArgv: ['--debug=' + debugPort] };
+        plugins.push(plug);        // loaded OK so save plugin cfg (if no config found most of plugincfg is undefined but still valid)
+        plugins[plugins.length - 1].recvFunc = fork("./" + path.join(plug.catDir, plug.className + ".js"), [], startOpts);                       // Create child process (13M per plugin) for isolation        
+        plugins[plugins.length - 1].recvFunc.on('message', function (msg) { toHost(msg.func, msg.cat, msg.name, msg.channel, msg.scope, msg.data, msg.log); });
+        plugins[plugins.length - 1].recvFunc.on('exit', function (code, signal) { childEnded("exit", this.pid, code, signal); });
+        if (plugins[plugins.length - 1].recvFunc.send({ func: "init", data: { cat: plug.category, name: plug.className, channels: plug.channels, settings: plug.genSettings, store: plug.store } }) === false) { // start plugin & pass in config info
+            status("SYSTEM/PLUGINS", "Can't communicate with child plugin '" + plug.className + "'. Plugin will be disabled.");
+            killChild(plugins.length - 1);
+        };
+    } catch (e) {
+        status("SYSTEM/PLUGINS", "Plugin startup error in '" + plug.className + "'. Plugin will be disabled. Error: " + e.stack);
+        killChild(plugins.length - 1);
+    }
 
-    status("SYSTEM/PLUGINS", "ERROR: Plugin ended as '" + func + "' code: " + param0 + " signal: " + param1);
+}
+
+// Handle child plugin when ending abnormally
+function childEnded(func, pid, param0, param1) {
+    var pluginName;    
+    for (var plug in plugins) {                                 // Look for plugin pid in plugins array
+        if (plugins[plug].recvFunc.pid === pid) {
+            pluginName = plugins[plug].className
+            break;
+        }
+    }
+    if (pluginName !== null) {
+        setTimeout(startPlugin, 3000, plugins.splice(plug, 1)[0])            // remove from plugin array and try again
+    }
+    status("SYSTEM/PLUGINS", "ERROR: Plugin " + pluginName + " ended as '" + func + "' code: " + param0 + " signal: " + param1 + ". Restarting...");
 }
 
 // Kill the child process when in error
 function killChild(num) {
     plugins[num].recvFunc.kill();
-    plugins.slice(num);
+    plugins.splice(num, 1);
 }
 
 function loadIniArrays(fileLoc) {
@@ -202,7 +196,9 @@ function toHost(func, cat, name, channel, scope, data, log) {
     //TODO: Dont accept messages from plugins that didnt start properly
     switch (func) {
         case "init":
-            status(cat.toUpperCase() + "/" + name.toUpperCase(), "Plugin loaded and started with status: " + data);
+            var portStr = "";
+            if (log !== undefined) portStr = ", debugging on port: " + log.split("debug=")[1];
+            status(cat.toUpperCase() + "/" + name.toUpperCase(), "Plugin loaded and started with status: " + data + portStr);
             //TODO: If data != OK, kill the plugin            
             break;
         case "tohost":
@@ -284,7 +280,11 @@ function pluginMsg(msg) {
         if (plugins[plugNum].className.toUpperCase() === msg.ClassName.toUpperCase()) {
             if (plugins[plugNum].category.toUpperCase() === msg.Category.toUpperCase()) {
                 if (plugins[plugNum].lastMsg.instance !== msg.Instance || plugins[plugNum].lastMsg.scope !== msg.Scope || plugins[plugNum].lastMsg.data !== msg.Data) {  // Don't echo message just sent to the same plugin
-                    return plugins[plugNum].recvFunc.send({ func: "fromhost", channel: msg.Instance, scope: msg.Scope, data: msg.Data });
+                    try {
+                        return plugins[plugNum].recvFunc.send({ func: "fromhost", channel: msg.Instance, scope: msg.Scope, data: msg.Data });
+                    } catch (e) {
+                        status("SYSTEM/NETWORK", "ERROR: Can't send message (" + msg.ClassName + "/" + msg.Instance + " " + msg.Data + ") to plugin. Error: " + e)
+                    }
                 }                    
             }
         }
@@ -329,7 +329,6 @@ function webSvr() {
 function socketCli() {
     var client = require('net').connect(9764, "192.168.1.14", function() {
         status("SYSTEM/SOCKETS",'Sockets client connected');
-        client.write('Do you echo!\r\n');
         });
     client.on('data', function(data) {
         //status("SYSTEM/SOCKETS","------------------> from PIC: " + data.toString());
@@ -522,11 +521,7 @@ function startNet() {
                 case func.action:
                     break;
                 case func.event:
-                    //try {
                         pluginMsg(msg)
-                    //} catch (e) {
-                    //    status("SYSTEM/NETWORK", "ERROR: Can't send message (" + msg.ClassName + "/" + msg.Instance + " " + msg.Data + ") to plugin. Error: " + e)
-                    //}
                     break;
                 case func.error:
                     alert("Error received from Server: " + msg.Data)
