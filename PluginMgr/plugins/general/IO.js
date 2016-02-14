@@ -4,6 +4,7 @@
 var com = require("serialport");
 
 var serialIO;
+var oldState;
 
 // startup function
 function startup() {
@@ -15,7 +16,6 @@ function startup() {
         stopbits: +fw.settings.stopbits,
         parity: fw.settings.parity,
         buffersize: 255,
-        //parser: com.parsers.readline('\r\n')
     }, true, function (err) {
         if (err) fw.log(err + ". Cannot open IO serial port, no IO usage functionality available.")
         startStatus = err;
@@ -25,12 +25,8 @@ function startup() {
        
     serialIO.on("open", function () {
         fw.log("Serial port open on " + fw.settings.comport);
-        serialIO.write(new Buffer([+fw.settings.HeaderCmd, 51, 1, 1]), function (err) {
-            if (err) {
-                fw.log("Serial write error: " + err);
-                fw.restart(99);
-            }
-        });
+        serialWrite(fw.settings.incmd, 0, 0);       // Get initial input port values
+        
     });
     
     serialIO.on("data", function (data) {
@@ -41,36 +37,61 @@ function startup() {
         fw.log("Serial port error " + err);
         fw.restart(99);
     });
+    
     return startStatus
 }
 
-// <msg><src>CC128-v1.18</src><dsb>00014</dsb><time>09:28:59</time><tmpr>29.9</tmpr><sensor>2</sensor><id>00692</id><type>1</type><ch1><watts>00481</watts></ch1><ch2><watts>00318</watts></ch2><ch3><watts>01320</watts></ch3></msg>
-// Power info sent every 6 seconds, history data every odd hour
-function serialRecv(data) {
-    try {
-        var recvSens
-        if (data.length > 0) {
+function serialWrite(cmdByte, data0, data1) {
+    fw.log("---------------------------------------------------------------------------------------------- " + cmdByte + " " + data0 + " " + data1)
+    serialIO.write(new Buffer([+fw.settings.HeaderCmd, +cmdByte, +data0, +data1]), function (err, cmdPort) {
+        if (err) {
+            fw.log("Can't write command " + cmdByte + ". Serial write error: " + err);
+            fw.restart(99);
         }
-    } catch (e) {
-        debugger
-        console.dir("IO Error occurred: " + e + " " + e.stack)
+    });
+}
+
+function serialSend(cmd, channelName, data) {         // Set output port on / off
+    var portNum = null;
+    for (var i = 0; i < fw.channels.length; i++) {
+        if (channelName.toString().toUpperCase() === fw.channels[i].name.toUpperCase()) {     // Find port number from channel name
+            if (+data > 1) data = 1;
+            serialWrite(+cmd, i, +data)
+            return;
+        }
     }
 }
 
-function writeUSB(channel, scope, data) {
-    try {
-        serialIO.write(new Buffer([+fw.settings.HeaderCmd, +fw.settings.outcmd, +channel, +data]), function (err) {
-            if (err) {
-                fw.log("Serial write error: " + err);
-                fw.restart(99);
-            }
-        });
-    } catch (e) { fw.log("Serial write error: " + e); }
+function serialRecv(data) {     // change on input ports
+//    fw.log("===================================================================================== " + data.length + " " + data[0] + " " + data[1] + " " + data[2])  
+    if (data.length == 3) {
+        switch (data[1]) {
+            case +fw.settings.incmd:
+                var mask = 1;
+                var changedBits;
+                if (typeof oldState === "undefined") {
+                    changedBits = 255;                  // send all port values initially
+                    serialWrite(fw.settings.ledcmdon, 0, 0);      // turn on indicator LED as we have initialised successfully
+                } else {
+                    changedBits = oldState ^ data;      // Get changed bits
+                }
+                if (changedBits) {
+                    for (var i = 0; i < 8; i++) {
+                        if ((changedBits & mask) && (typeof fw.channels[i] === "object")) {
+                            fw.toHost(fw.channels[i].name, "changed", ((data & mask) >> i).toString());
+                        }
+                        mask = mask << 1;
+                    }
+                    oldState = data;
+                }
+                break;
+        }
+    }
 }
 
 // Process host messages
 function fromHost(channel, scope, data) {
-    writeUSB(channel, scope, data);
+    serialSend(fw.settings.outcmd, channel, data);
     return "OK"
 }
 

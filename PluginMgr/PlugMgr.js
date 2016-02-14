@@ -408,7 +408,7 @@ function APISvr() {
                 var splitParams = reqUrl.search.split("?")
                 if (splitParams.length === 3) {
                     var newMsg = new HAMsg(splitPath[0], splitPath[1], splitPath[2], splitParams[1].split("=")[1], splitParams[2].split("=")[1].replace("%20", " "))// accept multiple parameters for data through web %20 escape
-                    exports.toHost(newMsg.cat, newMsg.className, newMsg.channel, newMsg.scope, newMsg.data)
+                    toHost("tohost", newMsg.cat, newMsg.className, newMsg.channel, newMsg.scope, newMsg.data)
                     status("SYSTEM/API", "API Server executed " + urlPath + ", scope: " + newMsg.scope + ", data: " + newMsg.data)
                     resp.end("HA Server executed API message: " + urlPath + ", scope: " + newMsg.scope + ", data: " + newMsg.data + " - status OK")
                 } else {
