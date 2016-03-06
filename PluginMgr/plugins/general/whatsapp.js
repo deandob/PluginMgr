@@ -1,19 +1,23 @@
 ﻿"use strict";
 
-var whatsapi, whatsapp;
+var whatsapi, whatsapp, waApi;
 
 function startup() {
     //Insert startup code here
     fw.log("Starting Whatsapp API Server...")
-    whatsapi = require('whatsapi');
-    whatsapp = whatsapi.createAdapter({
-        msisdn: fw.settings.msisdn, // phone number with country code
-        username: fw.settings.username, // your name on WhatsApp
-        password: fw.settings.password, // WhatsApp password
-        ccode: fw.settings.ccode // country code
-    });
+    waApi = require('node-wa');
+//    whatsapp = whatsapi.createAdapter({
+//        msisdn: fw.settings.msisdn, // phone number with country code
+//        username: fw.settings.username, // your name on WhatsApp
+//        password: fw.settings.password, // WhatsApp password
+//        ccode: fw.settings.ccode // country code
+//    });
     
-    whatsapp.connect(function connected(err) {
+    var whatsapi = new waApi(fw.settings.username, fw.settings.password, { displayName: '31 Needham', debug: true });    
+  
+    whatsapi.on("connect", function (err) { fw.log("GOT HERE -------------------------------------------------")})
+      
+/*    whatsapp.connect(function connected(err) {
         if (err) {
             fw.log("Error with connecting to Whatsapp: " + err);
         } else {
@@ -35,7 +39,7 @@ function startup() {
                 console.log('Name: %s, Participants: %d', g.subject, g.participants.length);
             });
         });
-
+*/
         /*whatsapp.requestGroupInfo("31 Needham Admins", function (err, array) {
             status("SYSTEM/WHATSAPP", "Error with sending Whatsapp message: ");
         
@@ -48,13 +52,13 @@ function startup() {
             }
         });*/
         //waSend("61404827904", "plugin Server here");
-        }
-    }
+        //}
+    //}
     
-    whatsapp.on('receivedMessage', function (message) {
+/*    whatsapp.on('receivedMessage', function (message) {
         fw.log("Received Whatsapp from " + message.notify + ", message: " + message.body);
     });
-        
+*/        
     return "OK"                                                     // Return 'OK' only if startup has been successful to ensure startup errors disable plugin
 }
 

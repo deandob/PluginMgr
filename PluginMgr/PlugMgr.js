@@ -115,7 +115,7 @@ function loadPlugins() {
                             }
                             if (iniCfg.enabled === true) startPlugin(new plugin(categories[catNum].Cat.toUpperCase(), pluginName, iniCfg.desc, "LOADED", channels, "", iniCfg.enabled, genSettings, store, catDir))
                         } catch (e) {
-                            status("SYSTEM/PLUGINS", "Plugin load error in '" + pluginName + "'. Plugin will be disabled. Error: " + plugStatus);
+                            status("SYSTEM/PLUGINS", "Plugin load error in '" + pluginName + "'. Plugin will be disabled. Error: " + e);
                             killChild(plugins.length - 1);                        }
                     } 
                 }

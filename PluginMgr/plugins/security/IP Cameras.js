@@ -62,7 +62,9 @@ function saveSnapShot( cam ) {
     var readFile = request( cameras[cam].snapshot ).pipe( writeFile )
 }
 
-function startFFMPEG( rtsp, recSeg, camName ) {
+function startFFMPEG(rtsp, recSeg, camName) {
+    delFilesDir(fw.settings.cachepath);       //remove old files
+
     //TODO: Could turn this into a native module & call a FFMPEG DLL 
     var ffmpeg = child_process.spawn( "ffmpeg/ffmpeg", [
         "-rtsp_transport", "tcp", "-i", rtsp, "-vcodec", "copy", "-f", "mp4", "-f", "segment", "-segment_time", recSeg, "-segment_wrap", 2, "-map", "0",
@@ -92,6 +94,21 @@ function startFFMPEG( rtsp, recSeg, camName ) {
     });
 
     return ffmpeg
+}
+
+function delFilesDir(dir) {
+    var list = fs.readdirSync(dir);
+    for (var i = 0; i < list.length; i++) {
+        var filename = dir + "/" + list[i];
+        var stat = fs.statSync(filename);
+        if (filename == "." || filename == "..") {
+            // pass these files 
+        } else if (stat.isDirectory()) {
+            // rmdir(filename);
+        } else {
+            fs.unlinkSync(filename);
+        }
+    }
 }
 
 // Live video stream management for HTML5 video. Uses FFMPEG to connect to H.264 camera stream, 
@@ -355,7 +372,10 @@ function removeOldFiles(files, beforeTime) {
     }
     loopCnt = 0;
     for ( var i = 0; i < files.length; ++i ) {
-        if ( files[i].ctime < beforeTime) fs.unlink( fw.settings.cachepath + "/" + files[i].file, function ( err ) { if (err) fw.log(err + " error deleting file")})     // delete old file so that create date changes
+        //if ( files[i].ctime < beforeTime) fs.unlink( fw.settings.cachepath + "/" + files[i].file, function ( err ) { if (err) fw.log(err + " error deleting file")})     // delete old file so that create date changes
+        if (files[i].ctime < beforeTime && !files[i].file.includes("$RECYCLE.BIN")) {
+            fs.unlink(fw.settings.cachepath + "/" + files[i].file, function (err) { if (err) fw.log(err + " error deleting file") })     // delete old file so that create date changes
+        }
     }
 }
 
@@ -370,6 +390,8 @@ function motionDetect( display, camNum ) {
     var motionDurationToTrig = fw.settings.motiondurationtotrig;   // How long (seconds) do we have to see consequtive motion before triggering
     var releaseTrigTime = fw.settings.releasetrigtime;             // Once triggered, how long before another trigger can be generated (secs)
     var largeChangeThresh = fw.settings.largechangethresh          // reject interframe changes that are greater than this percentage
+    var maxContours = fw.settings.maxcontours                      // reject lots of small blobs (leaves or light false triggering).
+    var maxVelocity = fw.settings.maxvelocity                      // ignore any blob that moves too fast eg. moth.
 
     try {
         var ramFiles = fs.readdirSync( fw.settings.cachepath )
@@ -381,14 +403,30 @@ function motionDetect( display, camNum ) {
     // #1 = display (1/0), #2 = diff Change, #3 = blursize, #4 = blurSD, #5 = frame rate, #6 = rtsp string, #7 = JSON mask array
 
     //TODO: Make this multi-camera 
-    var retString, diff, retCamNum, commIndex;
-    opencv.stdout.on( "data", function ( data ) {
+    var retString, diff, numContours, retCamNum, parsedVals;
+    var oldVectors = [];
+    opencv.stdout.on("data", function (data) {
         retString = data.toString()
-        if ( retString.substring( 0, 5 ) === "Diff:" ) {
-            commIndex = retString.indexOf( "," )
-            retCamNum = parseInt( retString.substring( 5, commIndex ) )
-            diff = parseInt( retString.substring( commIndex + 1 ) )
-            if ( diff > cameras[retCamNum].normTrigger && diff < largeChangeThresh * cameras[retCamNum].maxChange ) {           // don't react to changes too small or too big
+        //fw.log("==================================================================== " + retString)
+        if ( retString.substring( 0, 5 ) === "Diff:" ) { 
+            parsedVals = retString.substring(5).split(",");
+            retCamNum = parseInt(parsedVals[0]);
+            diff = parseInt(parsedVals[1]);                                     // total size of all change blobs
+            numContours = (parsedVals.length - 2) / 2;                          // number of blobs = # of vectors returned / 2
+            var velocityOK = 0;
+            if (oldVectors.length > 2) {                                        // get eucedian distance between current blobs and last frame blobs & check for excessive velocity.
+                for (var i = 2; i < parsedVals.length; i = i + 2) {
+                    if (i < oldVectors.length) {
+                        if (maxVelocity < (Math.sqrt(Math.pow(Math.abs(parsedVals[i] - oldVectors[i]), 2) + Math.pow(Math.abs(parsedVals[i + 1] - oldVectors[i + 1]), 2)))) velocityOK = velocityOK + 1;
+                        fw.log("===================================================================== " + oldVectors.length + " " + (Math.sqrt(Math.pow(Math.abs(parsedVals[i] - oldVectors[i]), 2) + Math.pow(Math.abs(parsedVals[i + 1] - oldVectors[i + 1]), 2))));
+                    }
+                }
+                if (velocityOK === 0) fw.log("--------------------------------------------------------- rejected velocity")
+            }            
+            oldVectors = [];
+            for (var i = 0; i < parsedVals.length; i++) oldVectors.push(parsedVals[i]);
+            
+            if (diff > cameras[retCamNum].normTrigger && diff < largeChangeThresh * cameras[retCamNum].maxChange && numContours < maxContours && velocityOK !== 0) {           // don't react to changes too small, too many or too big, or if all blobs move too fast
                 fw.log( "Cam: " + retCamNum + " Primed: " + diff )
                 cameras[retCamNum].alarmTriggeredTimer = 0;                                                    // wait until motion stopped before letting timer count for another trigger
                 if ( cameras[retCamNum].primed === false ) {
@@ -404,11 +442,11 @@ function motionDetect( display, camNum ) {
                         motionAlarm.emit( "motion", retCamNum, diff );
                     }
                 }
-            } else {
+            } else {                                                            // no motion
                 if ( cameras[retCamNum].primeTrigTimer > 0 ) {
                     fw.log( "Cam: " + retCamNum + " Primed reset: " + diff )
                 } else {
-                    if ( display && diff > 0 ) fw.log( "Cam: " + retCamNum + " Difference: " + diff )
+                    if ( display && diff > 0 ) fw.log( "Cam: " + retCamNum + " Difference: " + diff + " Contours: " + numContours )
                 }
                 cameras[retCamNum].primed = false;                  // no more motion, stop snapshots
                 cameras[retCamNum].primeTrigTimer = 0;
@@ -422,9 +460,9 @@ function motionDetect( display, camNum ) {
             }
         } else {
             if ( retString.substring( 0, 4 ) === "Max:" ) {                                      // Get maximum pixel count to use for calculating percentages for tuning parameters
-                commIndex = retString.indexOf( "," )
-                retCamNum = parseInt( retString.substring( 4, commIndex ) )
-                cameras[retCamNum].maxChange = parseInt( retString.substring( commIndex + 1 ) )                        // Set maximum pixel count for camera based on mask size
+                parsedVals = retString.substring(4).split(",");                
+                retCamNum = parseInt( parsedVals[0])
+                cameras[retCamNum].maxChange = parseInt( parsedVals[1])                        // Set maximum pixel count for camera based on mask size
                 cameras[retCamNum].normTrigger = cameras[retCamNum].maxChange * triggerSensitivity                  // values above this figure will prime the alarm trigger
                 if ( display ) fw.log( "Cam: " + retCamNum + " MaxChange: " + cameras[retCamNum].maxChange + ", TrigChange: " + cameras[retCamNum].normTrigger )
             }
@@ -542,7 +580,7 @@ function fromHost(channel, scope, data) {
     switch ( scope ) {
         case "mask":
             for ( var myCh in fw.channels ) if ( fw.channels[myCh].name === channel ) {                   // find the camera in the camera array
-                global.writeIni( cat, name, "channel" + myCh, "attrib3", "Value", data )          // Save new mask to ini file
+                fw.writeIni("channel" + myCh, "attrib3", "Value", data )          // Save new mask to ini file
                 setMask( myCh, data )                                                             // change the active mask
                 return "OK";
             }
