@@ -54,14 +54,6 @@ var camera = function ( name, desc, rtsp, snapshot, masks, status, ffmpeg ) {
     this.motionTimes = [];
 };
 
-// save snapshots from the IP camera to the ramdisk, get as many as we can
-function saveSnapShot( cam ) {
-    if ( cameras[cam].primed === false ) return
-    setTimeout( saveSnapShot, fw.settings.snapshotrate, cam )               // get more snapshots with small delay
-    var writeFile = fs.createWriteStream( fw.settings.cachepath + cameras[cam].name + "-" + timeDateStr( new Date ) + ".jpg" )
-    var readFile = request( cameras[cam].snapshot ).pipe( writeFile )
-}
-
 function startFFMPEG(rtsp, recSeg, camName) {
     delFilesDir(fw.settings.cachepath);       //remove old files
 
@@ -280,8 +272,6 @@ var isNumber = function ( n ) {
 // for JPGEG, only copy files between start motion and end motion, regardless of time, and delete all the others
 
 // Bugs:
-// Sometimes JPEG files are only 1 Kb large and being created close to each other in time (possibly due to prime resetting & seting immediately back
-// Not all JPEG files being copied over when motion
 // MP4 files not being deleted sometimes
 var copyingCnt
 function checkMotion() {
@@ -298,7 +288,7 @@ function checkMotion() {
                 fs.stat( fw.settings.cachepath + "/" + files[i], function ( err, stat ) {
                     fileCnt = fileCnt + 1
                     if (err) {
-                        //fw.log("STAT ERR " + err + " " + files[i])
+                        fw.log("-----------------------------------------------------------------------STAT ERR " + err + " " + files[i])
                         return;
                     }
                     fileArray.push( { file: files[i], ext: files[i].substr( -3, 3 ), ctime: stat.ctime })
@@ -350,7 +340,7 @@ function checkMotion() {
                         for (var alarm in cameras[mycam].motionTimes) {                         // Remove all motions that are not within the mp4 segment being written
                             if (cameras[mycam].motionTimes[alarm].start < latestMP4 && cameras[mycam].motionTimes[alarm].stop < latestMP4) cameras[mycam].motionTimes.splice(alarm, 1)                // Remove all motions from the array that we have processed
                         }
-                        removeOldFiles(fileArray, latestMP4)
+                        removeOldFiles(fw.settings.cachepath, fileArray, latestMP4)
                     }
                 });
             })( i );
@@ -360,7 +350,7 @@ function checkMotion() {
 
 var loopCnt = 0;
 //Remove the old files from the ramdrive after they have been copied to the archive
-function removeOldFiles(files, beforeTime) {
+function removeOldFiles(path, files, beforeTime) {
     if (copyingCnt !== 0) {
         loopCnt = loopCnt + 1
         if (loopCnt > 50) {                                         // If the copy counter isn't decrementing properly, delete anyway
@@ -373,8 +363,8 @@ function removeOldFiles(files, beforeTime) {
     loopCnt = 0;
     for ( var i = 0; i < files.length; ++i ) {
         //if ( files[i].ctime < beforeTime) fs.unlink( fw.settings.cachepath + "/" + files[i].file, function ( err ) { if (err) fw.log(err + " error deleting file")})     // delete old file so that create date changes
-        if (files[i].ctime < beforeTime && !files[i].file.includes("$RECYCLE.BIN")) {
-            fs.unlink(fw.settings.cachepath + "/" + files[i].file, function (err) { if (err) fw.log(err + " error deleting file") })     // delete old file so that create date changes
+        if (files[i].ctime < beforeTime && !files[i].file.includes("$RECYCLE.BIN") && !files[i].file.includes("System Volume Information")) {
+            fs.unlink(path + "/" + files[i].file, function (err) { if (err) fw.log(err + " error deleting file") })     // delete old file so that create date changes
         }
     }
 }
@@ -421,12 +411,15 @@ function motionDetect( display, camNum ) {
                         fw.log("===================================================================== " + oldVectors.length + " " + (Math.sqrt(Math.pow(Math.abs(parsedVals[i] - oldVectors[i]), 2) + Math.pow(Math.abs(parsedVals[i + 1] - oldVectors[i + 1]), 2))));
                     }
                 }
-                if (velocityOK === 0) fw.log("--------------------------------------------------------- rejected velocity")
+                //if (velocityOK === 0) fw.log("--------------------------------------------------------- rejected velocity")
             }            
             oldVectors = [];
             for (var i = 0; i < parsedVals.length; i++) oldVectors.push(parsedVals[i]);
+            velocityOK = 1;         /////////////////////////////////////////
             
-            if (diff > cameras[retCamNum].normTrigger && diff < largeChangeThresh * cameras[retCamNum].maxChange && numContours < maxContours && velocityOK !== 0) {           // don't react to changes too small, too many or too big, or if all blobs move too fast
+            if (diff > (largeChangeThresh * cameras[retCamNum].maxChange)) fw.log("----------------------------------------------------------------- EXCEEDED CHANGE THRESHOLD")
+
+            if (diff > cameras[retCamNum].normTrigger && diff < largeChangeThresh * cameras[retCamNum].maxChange && numContours < maxContours && velocityOK > 0) {           // don't react to changes too small, too many or too big, or if all blobs move too fast
                 fw.log( "Cam: " + retCamNum + " Primed: " + diff )
                 cameras[retCamNum].alarmTriggeredTimer = 0;                                                    // wait until motion stopped before letting timer count for another trigger
                 if ( cameras[retCamNum].primed === false ) {
@@ -475,6 +468,19 @@ function motionDetect( display, camNum ) {
     return true;
 }
 
+// save snapshots from the IP camera to the ramdisk, get as many as we can
+function saveSnapShot(cam) {
+    var readFile;
+    if (cameras[cam].primed === false) return                 // stop when motion stopped.
+    var writeFile = fs.createWriteStream(fw.settings.cachepath + cameras[cam].name + "-" + timeDateStr(new Date) + ".jpg")
+        .on("open", function () {
+        readFile = request(cameras[cam].snapshot).pipe(writeFile)
+            .on("finish", function () {
+                setTimeout(saveSnapShot, 200, cam);         // short pause
+        });
+    });
+}
+
 // Setup the motion detector mask
 function setMask( camNum, myMask ) {
     cameras[camNum].masks = myMask
@@ -499,6 +505,8 @@ function startCameras() {
             var ffmpegptr = startFFMPEG( mainStream, fw.settings.recordingsegment, fw.channels[cam].name )
 
             fs.mkdir( vidRoot + "/" + fw.channels[cam].name, function () { })                  // create directory, ignore error if it already exists
+            
+//            fw.addChannel(fw.channels[cam].name, "delfiles", "function", "input", 0, 1, "binary");         // delete files channel for camera
 
             // regularly match the timestamp for motion with the relevant recording and save it with a timestamp name if there is a motion trigger
 
@@ -532,6 +540,7 @@ function startup() {
         fw.log( "=====> Motion detected from camera: " + camNum + " value: " + val )
         fw.toHost( cameras[camNum].name, "motion", new Date().toString() );
     });
+    
 
     if ( startCameras() ) {
         //Live video Server
@@ -593,6 +602,20 @@ function fromHost(channel, scope, data) {
                 return "OK";
             }
             return;
+            break;
+        case "delfiles":
+            var fileArray = [];
+            var videoPath = process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME'] + "/Videos/" + fw.settings.videopath + "/" + channel;
+            fs.readdir(videoPath, function (err, files) {
+                if (err) return;
+                copyingCnt = 0;                                         // used in removeoldfiles 
+                fw.log("Request to delete video and picture files.")
+                for (var i = 0; i < files.length; ++i) {
+                    var fileStats = fs.statSync(videoPath + "/" + files[i]);
+                    fileArray.push({ file: files[i], ext: files[i].substr(-3, 3), ctime: fileStats.ctime })
+                }
+                removeOldFiles(videoPath, fileArray, new Date())
+            });
             break;
         default:
     }

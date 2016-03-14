@@ -1,6 +1,8 @@
 // NODE Plugin Manager to load and manage HA plugins
 "use strict";
 
+//FIX: If WS payload is too large (eg. too many video/jpg names to send) the other end drops the connection. Use 
+
 
 var fs = require("fs");
 var path = require("path");
@@ -589,7 +591,7 @@ function msgSend(msgFunc, cat, className, instance, scope, data, log) {
         })(templMsg.category, templMsg.className, templMsg.instance, templMsg.scope, templMsg.data, templMsg.level);
         return "OK"
     } catch (exception) { 
-        status("SYSTEM/NETWORK", "ERROR - Network Send error was reported : " + exception); 
+        status("SYSTEM/NETWORK", "ERROR - Network Send exception was caught: " + exception); 
         return exception;
     }
 }

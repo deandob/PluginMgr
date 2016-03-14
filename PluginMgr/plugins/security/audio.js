@@ -4,6 +4,7 @@ var fs = require('fs');
 var lame = require('lame');
 var speaker = require('speaker');
 var count;
+var playing = false;
 var stream = [];
 
 function startup() {
@@ -19,14 +20,27 @@ function fromHost(channel, scope, data) {
 }
 
 function playSound(file) {
+//    fw.log("audio sound requested " + playing)
+    if (playing === true) return;                                        // ignore multiple commands while playing
     fw.log("Playing file: " + file);
+    playing = true;
+    sendToSpeaker(file);
+}
+
+function sendToSpeaker(file) {
+    var mySpeaker = new speaker
     fs.createReadStream("plugins/" + fw.cat + "/" + file)
         .pipe(new lame.Decoder())
-        .on('format', function (format) {
-        this.pipe(new speaker(format)).on("close", function () {
-            if (count < +fw.settings.repeat) setTimeout(playSound, 800, file);
-        });
-        }); 
+        .pipe(mySpeaker)
+
+    mySpeaker.on("flush", function () {
+        if (count < +fw.settings.repeat) {
+            setTimeout(sendToSpeaker, 800, file);
+        } else {
+            playing = false;
+            fw.log("Stopped playing " + file);
+        }
+    })
     count = count + 1;
 }
 
