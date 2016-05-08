@@ -356,7 +356,7 @@ function removeOldFiles(path, files, beforeTime) {
         if (loopCnt > 50) {                                         // If the copy counter isn't decrementing properly, delete anyway
             fw.log("Exceeded wait for motion copy. Pending copy: " + copyingCnt)
         } else {
-            setTimeout(removeOldFiles, 10, files, beforeTime)       // Still copying, wait a bit longer
+            setTimeout(removeOldFiles, 10, path, files, beforeTime)       // Still copying, wait a bit longer
             return;
         }
     }

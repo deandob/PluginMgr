@@ -1,8 +1,13 @@
 ﻿"use strict";
-var mqttServer = require('mqtt-server');
+var net = require('net')
+    , mqttCon = require('mqtt-connection')
+  , server = new net.Server();
+var self = [];
+
 var serverName = require("os").hostname();
 var servers;
-
+/*
+//var mqttServer = require('mqtt-server');
 function startup() {
         servers = mqttServer({
             mqtt: 'tcp://' + serverName + ':' + fw.settings.mqttport,
@@ -63,18 +68,167 @@ function startup() {
                 }
             });
         });
-               
+          
         servers.listen(function () {
             fw.log('MQTT Server listening on port ' + fw.settings.mqttport);
         });
     
     return "OK"                                                     // Return 'OK' only if startup has been successful to ensure startup errors disable plugin
 }
+*/
+
+function startup() {
+    //---------------------------
+    // Load mqtt-connection
+    //---------------------------
+    
+    //---------------------------
+    // Create MQTT server
+    //---------------------------
+    
+    server.on('connection', function (stream) {
+        //---------------------------
+        // Get client
+        //---------------------------
+        
+        var client = mqttCon(stream);
+        
+        //---------------------------
+        // Client connected
+        //---------------------------
+        
+        client.on('connect', function (packet) {
+            //---------------------------
+            // Connection acknowledgement
+            //---------------------------
+            fw.log("CONNECTED");
+            client.connack({ returnCode: 0 });
+            
+            //---------------------------
+            // Set client ID
+            //---------------------------
+            
+            client.id = packet.clientId;
+            
+            //---------------------------
+            // Save client's last seen
+            //---------------------------
+            
+            client.last_seen = Math.round(new Date().getTime() / 1000);
+            
+            //---------------------------
+            // Save in clients[] array
+            //---------------------------
+            
+            self.clients[ client.id ] = client;
+        });
+        
+        //---------------------------
+        // Client published
+        //---------------------------
+        
+        client.on('publish', function (packet) {
+            //---------------------------
+            // Save client's last seen
+            //---------------------------
+            
+            client.last_seen = Math.round(new Date().getTime() / 1000);
+
+        //---------------------------
+        // Handle publish if you need to
+        //---------------------------
+        });
+        
+        //---------------------------
+        // Client pinged
+        //---------------------------
+        
+        client.on('pingreq', function (packet) {
+            //---------------------------
+            // Save client's last seen
+            //---------------------------
+            
+            client.last_seen = Math.round(new Date().getTime() / 1000);
+            
+            //---------------------------
+            // Respond
+            //---------------------------
+            
+            client.pingresp();
+        });
+        
+        //---------------------------
+        // Client disconnected
+        //---------------------------
+        
+        client.on('disconnect', function (packet) {
+            //---------------------------
+            // Remove from clients
+            //---------------------------
+            
+            if (self.clients[client.id]) {
+                delete self.clients[client.id];
+            }
+            
+            //---------------------------
+            // End stream
+            //---------------------------
+            
+            client.stream.destroy();
+            client.stream.end();
+        });
+        
+        //---------------------------
+        // Client closed connection
+        //---------------------------
+        
+        client.on('close', function (err) {
+            //---------------------------
+            // Remove from clients
+            //---------------------------
+            
+            if (self.clients[client.id]) {
+                delete self.clients[client.id];
+            }
+            
+            //---------------------------
+            // End stream
+            //---------------------------
+            
+            client.stream.destroy();
+            client.stream.end();
+        });
+        
+        //---------------------------
+        // Client connection error
+        //---------------------------
+        
+        client.on('error', function (err) {
+            //---------------------------
+            // Remove from clients
+            //---------------------------
+            
+            if (self.clients[client.id]) {
+                delete self.clients[client.id];
+            }
+            
+            //---------------------------
+            // End stream
+            //---------------------------
+            
+            client.stream.destroy();
+            client.stream.end();
+        });
+    }).listen(fw.settings.mqttport);
+    return "OK"                                                     // Return 'OK' only if startup has been successful to ensure startup errors disable plugin
+}
+
+
 
 function sendHost(topic, data) {            // cat/class/instance/scope in topic name, data in payload
     var splitPath = topic.split("/")
     if (splitPath.length === 4) {
-        exports.toHost(splitPath[0], splitPath[1], splitPath[2], splitPath[3], data)
+        fw.toHost(splitPath[0], splitPath[1], splitPath[2], splitPath[3], data)
         fw.log("MQTT Server executed " + topic + ", data: " + data)
         return 0;
     } else {

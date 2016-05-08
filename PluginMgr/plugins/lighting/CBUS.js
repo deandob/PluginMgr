@@ -57,15 +57,8 @@ function startup() {
         fw.log("Serial port open on " + fw.settings.comport);
         //debugger
         getTags()
-
-        // Initialise CBUS. Don't get additional network info, and don't receive regular MMI messages (request sync each hour)
-        sendQ.push("~~~")               // Reset + Address filter #1 Capture all status requests (FF)
-        sendQ.push("@A32100FF")         // Reset + Address filter #1 Capture all status requests (FF)
-        sendQ.push("@A32200FF")         // Address filter #2. Capture all status requests (FF)
-        sendQ.push("@A3420002")         // Option register #3, Local SAL on, EXSTAT ON
-        sendQ.push("@A3300019")         // Connect (bit0=1), use checksum (Bit3=8), smart (bit4=16), no monitor (bit5=32), no IDMON (bit6=64) = 25 = 0x19
-
-        sendSerial()                    // startup async send queue
+        
+        initCBUS();
 
         regularSync()                   // Extract detailed group status from the network        
     });
@@ -81,6 +74,17 @@ function startup() {
     });
 
     return startStatus                                 // Return 'OK' only if startup has been successful to ensure startup errors disable plugin
+}
+
+function initCBUS() {
+    // Initialise CBUS. Don't get additional network info, and don't receive regular MMI messages (request sync each hour)
+    sendQ.push("~~~")               // Reset + Address filter #1 Capture all status requests (FF)
+    sendQ.push("@A32100FF")         // Reset + Address filter #1 Capture all status requests (FF)
+    sendQ.push("@A32200FF")         // Address filter #2. Capture all status requests (FF)
+    sendQ.push("@A3420002")         // Option register #3, Local SAL on, EXSTAT ON
+    sendQ.push("@A3300019")         // Connect (bit0=1), use checksum (Bit3=8), smart (bit4=16), no monitor (bit5=32), no IDMON (bit6=64) = 25 = 0x19
+    
+    sendSerial()                    // startup async send queue
 }
 
 // Parse with group names and addresses into local array from c-gate XML
@@ -146,6 +150,7 @@ function sendSerial(msg) {
     } else {
         if ((new Date()).valueOf() - lastSent > 1000) sendReady = true;                  // Timeout didn't receive ack from CBUS, reset ready flag 
         fw.log("Not ready to send, queued: " + sendQ.length);
+        ///XXXXXXXXXXXXXXX'
     }
     if (sendQ.length > 0) queueTimer = setTimeout(sendSerial, SEND_THROTTLE)    // Still stuff to send, loop with no new message to send old messages
 }

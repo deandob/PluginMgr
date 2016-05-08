@@ -345,8 +345,131 @@ function socketCli() {
 //    //var socket = require('socket.io').
 }
 
-/////////////////////////// Socket Server
+/////////////////////////// MQTT Server
+MQTTSvr();
+function MQTTSvr() {
+    var mqtt = require('mqtt-packet')
+  , parser = mqtt.parser()
+    
+    var MQTTClients = [];
+    var MQTTClient = function (name, lastSeen, sock) {
+        this.name = name
+        this.lastSeen = lastSeen;
+        this.sock = sock;
+        this.subs = [];
+    }
+    var MQTTSub = function (id, name) {
+        this.id = id;
+        this.name = name;
+    }
+    var currSess;    
+    
+    parser.on('packet', function (packet) {
+        switch (packet.cmd) {
+            case "connect":
+                status("SYSTEM/MQTT", "MQTT client " + packet.clientId + " connected from " + currSess.remoteAddress);
+                for (var clientNum in MQTTClients) {
+                    if (MQTTClients[clientNum].sock.MQTTName === packet.clientId) {
+                        MQTTClients[clientNum].sock.end();
+                        MQTTClients.splice(clientNum, 1);              // duplicate client, remove from array
+                    }
+                }
+                currSess.MQTTName = packet.clientId;
+                currSess.MQTTNum = MQTTClients.length;
+                MQTTClients.push(new MQTTClient(packet.clientId, Math.round(new Date().getTime() / 1000), currSess));
+                currSess.write(mqtt.generate({
+                    cmd: 'connack'
+                    , returnCode: 0 // or whatever else you see fit
+                    , sessionPresent: false // or true.
+                }));
+                break;
+            case "publish":
+                switch (packet.qos) {
+                    case 0:
+                        processPub(packet.topic.toString(), packet.payload.toString());
+                        break;
+                    case 1:
+                        processPub(packet.topic.toString(), packet.payload.toString());
+                        currSess.write(mqtt.generate({
+                            cmd: 'puback'
+                            , messageId: packet.messageID
+                        }));
+                        break;
+                    case 2:
+                        processPub(packet.topic.toString(), packet.payload.toString());
+                        currSess.write(mqtt.generate({
+                            cmd: 'puback'
+                            , messageId: packet.messageID
+                        }));
+                        break;
+                    default:
+                }
 
+                break;
+            case "subscribe":                   // note, this implementation does not support multiple subscriptions per sub request - not MQTT standards compliant
+                status("SYSTEM/MQTT", "Client " + currSess.MQTTName + " subscribing to: " + packet.subscriptions[0].topic)                
+                MQTTClients[currSess.MQTTNum].subs.push(new MQTTSub(packet.messageId, packet.subscriptions[0].topic));
+                currSess.write(mqtt.generate({
+                    cmd: 'suback'
+                    , messageId: packet.messageId
+                    , granted: [0]                      // only support one subscription response and QoS 0.
+                }));
+                break;
+            case "pingreq":
+                break;
+            case "disconnect":
+                status("SYSTEM/MQTT", "MQTT client " + currSess.MQTTName + " disconnected from " + currSess.remoteAddress);
+                MQTTClients.splice(currSess.MQTTNum, 1);              // remove client from array
+                currSess.end();
+                break;
+        }
+    });
+    
+    function processPub(topic, data) {
+        var splitPath = topic.split("/")
+        if (splitPath.length === 4) {
+                var newMsg = new HAMsg(splitPath[0], splitPath[1], splitPath[2], splitPath[3], data)
+                toHost("tohost", newMsg.cat, newMsg.className, newMsg.channel, newMsg.scope, newMsg.data)
+                status("SYSTEM/MQTT", "MQTT Server published client " + currSess.MQTTName + " topic " + newMsg.cat + "/" + newMsg.className + "/" + newMsg.channel + ", scope: " + newMsg.scope + ", data: " + newMsg.data)
+        } else {
+                status("SYSTEM/MQTT", "Bad topic passed - " + topic + " from client " + currSess.MQTTName)
+        }
+    }    
+    
+    parser.on('error', function (error) {
+        status("SYSTEM/MQTT","Packet error " + error + " for received data from client " + currSess.MQTTName)
+    });
+  
+    var server = require('net').createServer(function (sock) { //'connection' listener
+        sock.on('end', function () {
+            status("SYSTEM/MQTT", 'MQTT client socket disconnected');
+        });
+        sock.on('data', function (data) {
+            currSess = this;                                // Save for session array
+            //status("SYSTEM/MQTT", 'MQTT client data: ' + data.toString());
+            parser.parse(data);
+        });
+        sock.on('error', function (err) {
+            status("SYSTEM/MQTT", 'MQTT client socket error: ' + err);
+        });
+    });
+    var sockSvr = server.listen(1883, "homeserver", function () {           //TODO: global._serverName istead of hard coding
+        status("SYSTEM/MQTT", "MQTT Server listening on " + server.address().address + ':' + server.address().port);
+    });
+    sockSvr.on("error", function (err) {
+        status("SYSTEM/MQTT", "Error with the MQTT server " + err);
+    });
+    sockSvr.on("close", function () {
+        setTimeout(function () {
+            status("SYSTEM/MQTT", "MQTT Server closed. Restarting...");
+            sockSvr = server.listen(8124, "homeserver", function () {   //TODO: global._serverName
+                status("SYSTEM/MQTT", "MQTT Server listening on " + server.address().address + ':' + server.address().port);
+            });
+        }, 1000);
+    });
+}
+
+/////////////////////////// Socket Server
 socketSvr();
 function socketSvr() {
     var server = require('net').createServer(function (sock) { //'connection' listener
@@ -361,7 +484,7 @@ function socketSvr() {
             status("SYSTEM/SOCKETS",'Sockets error from Client: ' + err);
         });
     });
-    var sockSvr = server.listen(8124, "homeserver.home", function () {
+    var sockSvr = server.listen(8124, "homeserver", function () {
         status("SYSTEM/SOCKETS","Sockets Server listening on " + server.address().address + ':' + server.address().port);
     });
     sockSvr.on("error", function (err) {
@@ -370,7 +493,7 @@ function socketSvr() {
     sockSvr.on("close", function () {
         setTimeout(function () {
             status("SYSTEM/SOCKETS", "Sockets Server closed. Restarting...");
-            sockSvr = server.listen(8124, "homeserver.home", function () {
+            sockSvr = server.listen(8124, "homeserver", function () {
                 status("SYSTEM/SOCKETS", "Sockets Server listening on " + server.address().address + ':' + server.address().port);
             });
         }, 1000);
