@@ -63,6 +63,18 @@ var chAttrib = function (name, type, value) {
     this.value = value;
 }
 
+var MQTTClients = [];
+var MQTTClient = function (name, lastSeen, sock) {
+    this.name = name
+    this.lastSeen = lastSeen;
+    this.sock = sock;
+    this.subs = [];
+}
+var MQTTSub = function (id, name) {
+    this.id = id;
+    this.name = name;
+}
+
 process.on("uncaughtException", function(err) {
     console.dir("Caught an unhandled exception: " + err + " " + err.stack);
 });
@@ -196,6 +208,7 @@ function shutPlugins() {
 // plugins call to send host messages
 function toHost(func, cat, name, channel, scope, data, log) {
     //TODO: Dont accept messages from plugins that didnt start properly
+    //TODO: reject any message that isn't ASCII as it could crash SQLite
     switch (func) {
         case "init":
             var portStr = "";
@@ -350,54 +363,43 @@ MQTTSvr();
 function MQTTSvr() {
     var mqtt = require('mqtt-packet')
   , parser = mqtt.parser()
-    
-    var MQTTClients = [];
-    var MQTTClient = function (name, lastSeen, sock) {
-        this.name = name
-        this.lastSeen = lastSeen;
-        this.sock = sock;
-        this.subs = [];
-    }
-    var MQTTSub = function (id, name) {
-        this.id = id;
-        this.name = name;
-    }
-    var currSess;    
-    
+    var currMQTTSess;
+        
+    // parse incoming MQTT packets
     parser.on('packet', function (packet) {
         switch (packet.cmd) {
             case "connect":
-                status("SYSTEM/MQTT", "MQTT client " + packet.clientId + " connected from " + currSess.remoteAddress);
+                status("SYSTEM/MQTT", "MQTT client " + packet.clientId + " connected from " + currMQTTSess.remoteAddress);
                 for (var clientNum in MQTTClients) {
                     if (MQTTClients[clientNum].sock.MQTTName === packet.clientId) {
                         MQTTClients[clientNum].sock.end();
                         MQTTClients.splice(clientNum, 1);              // duplicate client, remove from array
                     }
                 }
-                currSess.MQTTName = packet.clientId;
-                currSess.MQTTNum = MQTTClients.length;
-                MQTTClients.push(new MQTTClient(packet.clientId, Math.round(new Date().getTime() / 1000), currSess));
-                currSess.write(mqtt.generate({
+                currMQTTSess.MQTTName = packet.clientId;
+                currMQTTSess.MQTTNum = MQTTClients.length;
+                MQTTClients.push(new MQTTClient(packet.clientId, Math.round(new Date().getTime() / 1000), currMQTTSess));
+                currMQTTSess.write(mqtt.generate({
                     cmd: 'connack'
                     , returnCode: 0 // or whatever else you see fit
                     , sessionPresent: false // or true.
                 }));
                 break;
-            case "publish":
+            case "publish":             // Assumes text topic and binary data.
                 switch (packet.qos) {
                     case 0:
-                        processPub(packet.topic.toString(), packet.payload.toString());
+                        processPub(packet.topic.toString(), packet.payload);
                         break;
                     case 1:
-                        processPub(packet.topic.toString(), packet.payload.toString());
-                        currSess.write(mqtt.generate({
+                        processPub(packet.topic.toString(), packet.payload);
+                        currMQTTSess.write(mqtt.generate({
                             cmd: 'puback'
                             , messageId: packet.messageID
                         }));
                         break;
                     case 2:
-                        processPub(packet.topic.toString(), packet.payload.toString());
-                        currSess.write(mqtt.generate({
+                        processPub(packet.topic.toString().trim(), packet.payload);
+                        currMQTTSess.write(mqtt.generate({
                             cmd: 'puback'
                             , messageId: packet.messageID
                         }));
@@ -407,45 +409,49 @@ function MQTTSvr() {
 
                 break;
             case "subscribe":                   // note, this implementation does not support multiple subscriptions per sub request - not MQTT standards compliant
-                status("SYSTEM/MQTT", "Client " + currSess.MQTTName + " subscribing to: " + packet.subscriptions[0].topic)                
-                MQTTClients[currSess.MQTTNum].subs.push(new MQTTSub(packet.messageId, packet.subscriptions[0].topic));
-                currSess.write(mqtt.generate({
+                status("SYSTEM/MQTT", "Client " + currMQTTSess.MQTTName + " subscribing to: " + packet.subscriptions[0].topic)                
+                MQTTClients[currMQTTSess.MQTTNum].subs.push(new MQTTSub(packet.messageId, packet.subscriptions[0].topic));
+                currMQTTSess.write(mqtt.generate({
                     cmd: 'suback'
                     , messageId: packet.messageId
                     , granted: [0]                      // only support one subscription response and QoS 0.
                 }));
                 break;
             case "pingreq":
+                currMQTTSess.write(mqtt.generate({
+                    cmd: 'pingresp'
+                }));
                 break;
             case "disconnect":
-                status("SYSTEM/MQTT", "MQTT client " + currSess.MQTTName + " disconnected from " + currSess.remoteAddress);
-                MQTTClients.splice(currSess.MQTTNum, 1);              // remove client from array
-                currSess.end();
+                status("SYSTEM/MQTT", "MQTT client " + currMQTTSess.MQTTName + " disconnected from " + currMQTTSess.remoteAddress);
+                MQTTClients.splice(currMQTTSess.MQTTNum, 1);              // remove client from array
+                currMQTTSess.end();
                 break;
         }
+        MQTTClients[currMQTTSess.MQTTNum].lastSeen = Math.round(new Date().getTime() / 1000);
     });
-    
+        
+    parser.on('error', function (error) {
+        status("SYSTEM/MQTT", "Packet error " + error + " for received data from client " + currMQTTSess.MQTTName)
+    });
+      
     function processPub(topic, data) {
         var splitPath = topic.split("/")
+
         if (splitPath.length === 4) {
-                var newMsg = new HAMsg(splitPath[0], splitPath[1], splitPath[2], splitPath[3], data)
-                toHost("tohost", newMsg.cat, newMsg.className, newMsg.channel, newMsg.scope, newMsg.data)
-                status("SYSTEM/MQTT", "MQTT Server published client " + currSess.MQTTName + " topic " + newMsg.cat + "/" + newMsg.className + "/" + newMsg.channel + ", scope: " + newMsg.scope + ", data: " + newMsg.data)
+            status("SYSTEM/MQTT", "MQTT Server published client " + currMQTTSess.MQTTName + " topic " + splitPath[0] + "/" + splitPath[1] + "/" + splitPath[2] + ", scope: " + splitPath[3] + ", data: " + data)
+            toHost("tohost", splitPath[0], splitPath[1], splitPath[2], splitPath[3], data)
         } else {
-                status("SYSTEM/MQTT", "Bad topic passed - " + topic + " from client " + currSess.MQTTName)
+            status("SYSTEM/MQTT", "Bad topic passed - " + topic + " from client " + currMQTTSess.MQTTName)
         }
     }    
     
-    parser.on('error', function (error) {
-        status("SYSTEM/MQTT","Packet error " + error + " for received data from client " + currSess.MQTTName)
-    });
-  
     var server = require('net').createServer(function (sock) { //'connection' listener
         sock.on('end', function () {
             status("SYSTEM/MQTT", 'MQTT client socket disconnected');
         });
         sock.on('data', function (data) {
-            currSess = this;                                // Save for session array
+            currMQTTSess = this;                                // Save for session array
             //status("SYSTEM/MQTT", 'MQTT client data: ' + data.toString());
             parser.parse(data);
         });
