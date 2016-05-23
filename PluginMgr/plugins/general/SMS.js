@@ -1,16 +1,55 @@
 ﻿"use strict";
+//var https = require('https');
+//var url = require('url'); 
+var TelstraAPI = require('telstra-api');
+var t; 
 
 function startup() {
+    //Insert startup code here
+    t = new TelstraAPI(fw.settings.consumer_key, fw.settings.consumer_secret, "SMS");
     return "OK"                                                     // Return 'OK' only if startup has been successful to ensure startup errors disable plugin
+
 }
 
-function sendHost(topic, data) {            // cat/class/instance/scope in topic name, data in payload
-}
- 
+/*
+curl - X POST \
+-H "Content-Type: application/x-www-form-urlencoded" \
+-d "client_id=$CONSUMER_KEY&client_secret=$CONSUMER_SECRET&grant_type=client_credentials&scope=SMS" \
+""
+
+var body = JSON.stringify({
+    client_id: fw.settings.consumer_key,
+    client_secret: fw.settings.consumer_secret,
+    grant_type: 'client_credentials',
+    scope: 'SMS'
+});
+
+var uriObj = url.parse(fw.settings.authurl);
+uriObj.method = "post";
+uriObj.headers = {
+    'Accept': 'application/json', 
+    'Content-Length': body.length,
+    'Content-Type': 'application/x-www-form-urlencoded' 
+}; 
+*/
 
 // Receive a message from the host
 function fromHost(channel, scope, data) {
     //Insert code to manage messages from the host
+    //    switch (scope.toLowerCase()) {
+    //        case "group0":
+    //            break;
+    //        case "group1":
+    //            break;
+    //    }
+    var myscope = scope.toLowerCase();
+    if (typeof fw.settings[myscope] !== "undefined") {
+        for (var mobile in fw.settings[myscope]) {
+            var ttt = fw.settings[myscope][mobile].Number
+            t.sms.send(fw.settings[myscope][mobile].Number, "[31Needham] message for " + fw.settings[myscope][mobile].Name + ": " + data);
+            console.log(fw.settings[myscope][mobile].Number + "  -> [31Needham] message for " + fw.settings[myscope][mobile].Name + ", " + data);
+        }
+    }
 }
 
 // Shutdown the plugin
@@ -46,3 +85,4 @@ process.on('message', function (msg) {
     }
     process.send({ func: msg.func, cat: fw.cat, name: fw.plugName, data: retval, log: process.execArgv[0] });
 });
+

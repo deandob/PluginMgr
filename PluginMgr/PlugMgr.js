@@ -314,6 +314,7 @@ function webSvr() {
     var app = express();
     var __dirname = ""
     status("SYSTEM/HTTP", "NODE.JS settings: " + app.get('env'));                 // affects cache, needs NODE_ENV environment variable set to production
+
     app.use(compression({ threshold: 512 }));
     var oneYear = 86400000 * 365;
     app.enable('etag')
@@ -333,6 +334,7 @@ function webSvr() {
             appSvr = app.listen(80);
         }, 1000);
     });
+    
     status("SYSTEM/HTTP", "HTTP server started.")
 }
 

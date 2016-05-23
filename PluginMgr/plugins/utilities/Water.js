@@ -1,12 +1,9 @@
 ﻿"use strict";
 
 function startup() {
+    //Insert startup code here
     return "OK"                                                     // Return 'OK' only if startup has been successful to ensure startup errors disable plugin
 }
-
-function sendHost(topic, data) {            // cat/class/instance/scope in topic name, data in payload
-}
- 
 
 // Receive a message from the host
 function fromHost(channel, scope, data) {
@@ -46,3 +43,4 @@ process.on('message', function (msg) {
     }
     process.send({ func: msg.func, cat: fw.cat, name: fw.plugName, data: retval, log: process.execArgv[0] });
 });
+
