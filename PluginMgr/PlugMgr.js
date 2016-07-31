@@ -1,7 +1,7 @@
 // NODE Plugin Manager to load and manage HA plugins
 "use strict";
 
-//FIX: If WS payload is too large (eg. too many video/jpg names to send) the other end drops the connection. Use 
+//FIX: If WS payload is too large (eg. too many video/jpg names to send) the other end drops the connection. Use a better websockets library on .NET.
 
 
 var fs = require("fs");
@@ -676,10 +676,13 @@ function startNet() {
                 setTimeout(startNet, 5000);          // Try again after a delay
             } else {
                 status("SYSTEM/NETWORK", "Server connection closed");
-                netState = "closed"
+                restart(1);                         // Try reloading
             }
         }
-    } catch (exception) { status("SYSTEM/NETWORK", "ERROR - General Network Error was reported: " + exception); }
+    } catch (exception) {
+        status("SYSTEM/NETWORK", "ERROR - General Network Error was reported: " + exception);
+        restart(1);
+    }
 }
 
 function eventSend(cat, className, instance, scope, data, log) {
@@ -738,7 +741,7 @@ function buildJSON(myMsg) {
 var ws, remWs, locWs;
 var wsPortRemote = 80
 var wsPortClient = 1066
-var remoteHost = "HAProxy.azurewebsites.net"
+var remoteHost = "HAWSProxy.azurewebsites.net"
 var remoteState = "starting"
 var remClientState = "unconnected"
 startRemote();

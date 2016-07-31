@@ -10,6 +10,7 @@
   "dependencies": {
     "0": "0.0.0",
     "compression": "^1.6.1",
+    "dialog-router-api": "0.0.2",
     "express": "^4.13.4",
     "ftp": "^0.3.7",
     "ftp-get": "^0.3.1",

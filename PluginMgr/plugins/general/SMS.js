@@ -2,11 +2,9 @@
 //var https = require('https');
 //var url = require('url'); 
 var TelstraAPI = require('telstra-api');
-var t; 
 
 function startup() {
     //Insert startup code here
-    t = new TelstraAPI(fw.settings.consumer_key, fw.settings.consumer_secret, "SMS");
     return "OK"                                                     // Return 'OK' only if startup has been successful to ensure startup errors disable plugin
 
 }
@@ -44,10 +42,11 @@ function fromHost(channel, scope, data) {
     //    }
     var myscope = scope.toLowerCase();
     if (typeof fw.settings[myscope] !== "undefined") {
+        var t = new TelstraAPI(fw.settings.consumer_key, fw.settings.consumer_secret, "SMS");
+
         for (var mobile in fw.settings[myscope]) {
-            var ttt = fw.settings[myscope][mobile].Number
-            t.sms.send(fw.settings[myscope][mobile].Number, "[31Needham] message for " + fw.settings[myscope][mobile].Name + ": " + data);
-            console.log(fw.settings[myscope][mobile].Number + "  -> [31Needham] message for " + fw.settings[myscope][mobile].Name + ", " + data);
+            t.sms.send(fw.settings[myscope][mobile].Number, "[31Needham - " + fw.settings[myscope][mobile].Name + "]: " + data);
+            fw.log("SMS sent to " + fw.settings[myscope][mobile].Number + " (" + fw.settings[myscope][mobile].Name + "): " + data);
         }
     }
 }

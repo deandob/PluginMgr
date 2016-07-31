@@ -4,7 +4,7 @@ var http = require("http");
 function startup() {
     //Insert startup code here
     pollNet(fw.settings.testurl);
-    setInterval(pollNet, +fw.settings.interval * 60000, fw.settings.testurl);
+    setInterval(pollNet, +fw.settings.interval * 60000, fw.settings.testurl);       // delay in minutes
     return "OK"                                                     // Return 'OK' only if startup has been successful to ensure startup errors disable plugin
 }
 
@@ -20,11 +20,18 @@ function pollNet(url) {
                 var mBitSec = +(8 / ((diff[0] * 1e9 + diff[1]) * 1e-9)).toFixed(3)
                 var mByteSec = +(1 / ((diff[0] * 1e9 + diff[1]) * 1e-9)).toFixed(3)
                 fw.toHost(fw.channels[0].name, fw.channels[0].units, mBitSec)
-            //fw.log("Internet speed Mbps: " + mBitSec + "Mbit/Sec, Download speed MByte/Sec: "  + mByteSec)
-            })
-        });
+                //fw.log("Internet speed Mbps: " + mBitSec + "Mbit/Sec, Download speed MByte/Sec: "  + mByteSec)
+            });
+            response.on('error', function (e) {
+                fw.toHost(fw.channels[0].name, fw.channels[0].units, 0);
+                fw.log("Network error occurred, internet is down. " + e.message);
+            });
+        }).on('error', function (e) {
+            fw.toHost(fw.channels[0].name, fw.channels[0].units, 0);
+            fw.log("Network error occurred, internet is down. " + e.message);
+        })
     } catch (e) {
-        fw.log("Error occurred: " + e.toString())
+        fw.log("Error occurred: " + e.message)
     }
 }
 

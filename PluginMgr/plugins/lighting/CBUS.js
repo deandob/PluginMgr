@@ -357,8 +357,10 @@ function serialRecv(data) {
                                                 default:
                                             }
                                         }
-                                    grpStates[pairCnt].level = hexByte
-                                    fw.toHost(grpStates[pairCnt].name, "value", parseInt(hexByte / 2.5499), false);             // Dont log MMI messages
+                                        if (grpStates[pairCnt].level !== hexByte) {                     // Only send changes
+                                            grpStates[pairCnt].level = hexByte
+                                            fw.toHost(grpStates[pairCnt].name, "value", parseInt(hexByte / 2.5499), false);             // Dont log MMI messages
+                                        }
                                     }
                                     pairCnt = pairCnt + 1
                                 }

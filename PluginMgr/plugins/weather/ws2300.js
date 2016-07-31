@@ -297,13 +297,13 @@ function processResult() {
             oldData = outdoorTemp;
             if (fw.settings.tempunits.toUpperCase() === "F") {
                 outdoorTemp = Math.round((((((recvBuff[1] >> 4) * 10 + (recvBuff[1] & 0xF) + (recvBuff[0] >> 4) / 10.0 + (recvBuff[0] & 0xF) / 100.0) - 30.0)) * 9 / 5 + 32) * 10) / 10;
-                if (outdoorTemp > 120) {
+                if (outdoorTemp > 120 || outdoorTemp < 0) {
                     fw.log("outdoor temperature " + outdoorTemp + " reading is incorrect. Check battery.")
                     break;
                 }
             } else {
                 outdoorTemp = Math.round(((((recvBuff[1] >> 4) * 10 + (recvBuff[1] & 0xF) + (recvBuff[0] >> 4) / 10.0 + (recvBuff[0] & 0xF) / 100.0) - 30.0)) * 10) / 10;
-                if (outdoorTemp > 60) {
+                if (outdoorTemp > 60 || outdoorTemp < -20) {
                     fw.log("Outdoor temperature " + outdoorTemp + " reading is incorrect. Check battery.")
                     break;
                 }

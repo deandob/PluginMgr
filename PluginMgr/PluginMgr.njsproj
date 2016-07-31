@@ -42,9 +42,11 @@
     <Compile Include="plugins\security\audio.js" />
     <Compile Include="plugins\security\IP Cameras.js" />
     <Compile Include="plugins\utilities\FTP Helper.js" />
+    <Compile Include="plugins\utilities\Huawei\Huawei.js" />
+    <Compile Include="plugins\utilities\Huawei\Huawei_utils.js" />
     <Compile Include="plugins\utilities\Net Speed.js" />
     <Compile Include="plugins\utilities\SNMP.js" />
-    <Compile Include="plugins\utilities\Water.js" />
+    <Compile Include="plugins\utilities\Router.js" />
     <Compile Include="plugins\weather\forecast.js" />
     <Compile Include="plugins\weather\wm918.js" />
     <Compile Include="plugins\weather\ws2300.js" />
@@ -64,7 +66,7 @@
     <Content Include="plugins\utilities\FTP Helper.ini" />
     <Content Include="plugins\utilities\Net Speed.ini" />
     <Content Include="plugins\utilities\SNMP.ini" />
-    <Content Include="plugins\utilities\Water.ini" />
+    <Content Include="plugins\utilities\Router.ini" />
     <Content Include="plugins\weather\forecast.ini" />
     <Content Include="plugins\weather\wm918.ini" />
     <Content Include="plugins\weather\ws2300.ini" />
@@ -78,6 +80,7 @@
     <Folder Include="plugins\power\" />
     <Folder Include="plugins\security\" />
     <Folder Include="plugins\utilities\" />
+    <Folder Include="plugins\utilities\Huawei\" />
     <Folder Include="plugins\weather\" />
     <Folder Include="typings\" />
     <Folder Include="typings\node\" />
@@ -85,6 +88,22 @@
   <ItemGroup>
     <TypeScriptCompile Include="typings\node\node.d.ts" />
     <TypeScriptCompile Include="typings\node\node.d.ts" />
+    <TypeScriptCompile Include="typings\node\node.d.ts" />
+    <TypeScriptCompile Include="typings\node\node.d.ts" />
+    <TypeScriptCompile Include="typings\node\node.d.ts" />
+    <TypeScriptCompile Include="typings\node\node.d.ts" />
+    <TypeScriptCompile Include="typings\node\node.d.ts" />
+    <TypeScriptCompile Include="typings\node\node.d.ts" />
+    <TypeScriptCompile Include="typings\node\node.d.ts" />
+    <TypeScriptCompile Include="typings\node\node.d.ts" />
+    <TypeScriptCompile Include="typings\tsd.d.ts" />
+    <TypeScriptCompile Include="typings\tsd.d.ts" />
+    <TypeScriptCompile Include="typings\tsd.d.ts" />
+    <TypeScriptCompile Include="typings\tsd.d.ts" />
+    <TypeScriptCompile Include="typings\tsd.d.ts" />
+    <TypeScriptCompile Include="typings\tsd.d.ts" />
+    <TypeScriptCompile Include="typings\tsd.d.ts" />
+    <TypeScriptCompile Include="typings\tsd.d.ts" />
     <TypeScriptCompile Include="typings\tsd.d.ts" />
     <TypeScriptCompile Include="typings\tsd.d.ts" />
   </ItemGroup>
