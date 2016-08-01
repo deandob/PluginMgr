@@ -3,6 +3,7 @@
 var router = require('./Huawei/Huawei');
 
 var token;
+var rssi = "";
 
 // Originally from 
 // https://blog.hqcodeshop.fi/archives/259-Huawei-E5186-AJAX-API.html
@@ -13,17 +14,18 @@ function startup() {
     router = router.create({
         gateway: fw.settings["routerip"]
     });
-    setInterval(routerCmd, +fw.settings["pollrssi"] * 1000, "getsignal");       // send RSSI regularly
+    routerCmd("getsignal", "", false);
+    setInterval(routerCmd, +fw.settings["pollrssi"] * 1000, "getsignal", "", true);       // send RSSI regularly
     return "OK"                                                     // Return 'OK' only if startup has been successful to ensure startup errors disable plugin
 }
 
-function routerCmd(func, data) {
+function routerCmd(func, data, sendIfChanged) {
     router.getToken(function (error, myToken) {
         if (error) fw.log("ERROR - Can't get token from Huawei LTE router, possibly offline? " + error);
         else {
             token = myToken;
             router.login(myToken, fw.settings["username"], fw.settings["password"], function (error, response) {
-                fw.log("Login to Huawei LTE router: " + response);
+                //fw.log("Login to Huawei LTE router: " + response);
                 if (error) fw.log("ERROR - Can't login to Huawei LTE router, possibly offline? " + error);
                 else {
                     switch (func.toLowerCase()) {
@@ -32,8 +34,9 @@ function routerCmd(func, data) {
                             break;
                         case "getsignal":
                             router.getSignalStatus(token, function (error, response) {
-                                fw.toHost(fw.channels[1].name, fw.channels[1].units, response.rssi);
-                                fw.log("RSSI Signal strength: " + response.rssi)
+                                if (rssi != response.rssi || !sendIfChanged) fw.toHost(fw.channels[1].name, fw.channels[1].units, response.rssi);     // Only send changes or if sent explicit cmd
+                                //fw.log("RSSI Signal strength: " + response.rssi);
+                                rssi = response.rssi;
                             });
                             break;
                         case "reboot":
@@ -49,6 +52,7 @@ function routerCmd(func, data) {
     });
 }
 
+// '<?xml version:"1.0" encoding="UTF-8"?><request><Ssids><Ssid><Index>0</Index><WifiEnable>0</WifiEnable><WifiSsid>vividwireless-66AB</WifiSsid><WifiMac></WifiMac><WifiBroadcast>0</WifiBroadcast><WifiIsolate>0</WifiIsolate><wifi_max_assoc>32</wifi_max_assoc><WifiAuthmode>WPA2-PSK</WifiAuthmode><WifiBasicencryptionmodes>WEP</WifiBasicencryptionmodes><WifiWpaencryptionmodes>AES</WifiWpaencryptionmodes><WifiWepKeyIndex>1</WifiWepKeyIndex><WifiWpsenbl>1</WifiWpsenbl><WifiWpscfg>0</WifiWpscfg><WifiRotationInterval>60</WifiRotationInterval><WifiAssociatedStationNum>0</WifiAssociatedStationNum><wifitotalswitch>1</wifitotalswitch><wifiguestofftime>0</wifiguestofftime></Ssid><Ssid><Index>1</Index><WifiEnable>0</WifiEnable><WifiSsid>vividwireless-66AB-1</WifiSsid><WifiMac></WifiMac><WifiBroadcast>0</WifiBroadcast><WifiIsolate>0</WifiIsolate><wifi_max_assoc>32</wifi_max_assoc><WifiAuthmode>WPA2-PSK</WifiAuthmode><WifiBasicencryptionmodes>WEP</WifiBasicencryptionmodes><WifiWpaencryptionmodes>AES</WifiWpaencryptionmodes><WifiWepKeyIndex>1</WifiWepKeyIndex><WifiWpsenbl>1</WifiWpsenbl><WifiWpscfg>0</WifiWpscfg><WifiRotationInterval>60</WifiRotationInterval><WifiAssociatedStationNum>0</WifiAssociatedStationNum><wifitotalswitch>1</wifitotalswitch><wifiguestofftime>0</wifiguestofftime></Ssid><Ssid><Index>2</Index><WifiEnable>0</WifiEnable><WifiSsid>vividwireless-66AB-2</WifiSsid><WifiMac></WifiMac><WifiBroadcast>0</WifiBroadcast><WifiIsolate>0</WifiIsolate><wifi_max_assoc>32</wifi_max_assoc><WifiAuthmode>WPA2-PSK</WifiAuthmode><WifiBasicencryptionmodes>WEP</WifiBasicencryptionmodes><WifiWpaencryptionmodes>AES</WifiWpaencryptionmodes><WifiWepKeyIndex>1</WifiWepKeyIndex><WifiWpsenbl>1</WifiWpsenbl><WifiWpscfg>0</WifiWpscfg><WifiRotationInterval>60</WifiRotationInterval><WifiAssociatedStationNum>0</WifiAssociatedStationNum><wifitotalswitch>1</wifitotalswitch><wifiguestofftime>0</wifiguestofftime></Ssid><Ssid><Index>3</Index><WifiEnable>0</WifiEnable><WifiSsid>vividwireless-66AB-3</WifiSsid><WifiMac></WifiMac><WifiBroadcast>0</WifiBroadcast><WifiIsolate>0</WifiIsolate><wifi_max_assoc>32</wifi_max_assoc><WifiAuthmode>WPA2-PSK</WifiAuthmode><WifiBasicencryptionmodes>WEP</WifiBasicencryptionmodes><WifiWpaencryptionmodes>AES</WifiWpaencryptionmodes><WifiWepKeyIndex>1</WifiWepKeyIndex><WifiWpsenbl>1</WifiWpsenbl><WifiWpscfg>0</WifiWpscfg><WifiRotationInterval>60</WifiRotationInterval><WifiAssociatedStationNum>0</WifiAssociatedStationNum><wifitotalswitch>1</wifitotalswitch><wifiguestofftime>0</wifiguestofftime></Ssid></Ssids><WifiRestart>1</WifiRestart></request>'
 function setWifi(value) {
     router.multiBasicSettings(token, function (error, responseBody, response) {
         if (error) fw.log("ERROR - Can't modify Wifi settings, possibly offline? " + error)
@@ -56,7 +60,6 @@ function setWifi(value) {
             var locateEnablePos = responseBody.indexOf("<WifiEnable>") + 12;
             var body = responseBody.substr(0, locateEnablePos) + value + responseBody.substr(locateEnablePos + 1);
             body = body.replace(/response/gi, "request").replace("</request>", "<WifiRestart>1</WifiRestart></request>")
-            var body1 = '<?xml version:"1.0" encoding="UTF-8"?><request><Ssids><Ssid><Index>0</Index><WifiEnable>0</WifiEnable><WifiSsid>vividwireless-66AB</WifiSsid><WifiMac></WifiMac><WifiBroadcast>0</WifiBroadcast><WifiIsolate>0</WifiIsolate><wifi_max_assoc>32</wifi_max_assoc><WifiAuthmode>WPA2-PSK</WifiAuthmode><WifiBasicencryptionmodes>WEP</WifiBasicencryptionmodes><WifiWpaencryptionmodes>AES</WifiWpaencryptionmodes><WifiWepKeyIndex>1</WifiWepKeyIndex><WifiWpsenbl>1</WifiWpsenbl><WifiWpscfg>0</WifiWpscfg><WifiRotationInterval>60</WifiRotationInterval><WifiAssociatedStationNum>0</WifiAssociatedStationNum><wifitotalswitch>1</wifitotalswitch><wifiguestofftime>0</wifiguestofftime></Ssid><Ssid><Index>1</Index><WifiEnable>0</WifiEnable><WifiSsid>vividwireless-66AB-1</WifiSsid><WifiMac></WifiMac><WifiBroadcast>0</WifiBroadcast><WifiIsolate>0</WifiIsolate><wifi_max_assoc>32</wifi_max_assoc><WifiAuthmode>WPA2-PSK</WifiAuthmode><WifiBasicencryptionmodes>WEP</WifiBasicencryptionmodes><WifiWpaencryptionmodes>AES</WifiWpaencryptionmodes><WifiWepKeyIndex>1</WifiWepKeyIndex><WifiWpsenbl>1</WifiWpsenbl><WifiWpscfg>0</WifiWpscfg><WifiRotationInterval>60</WifiRotationInterval><WifiAssociatedStationNum>0</WifiAssociatedStationNum><wifitotalswitch>1</wifitotalswitch><wifiguestofftime>0</wifiguestofftime></Ssid><Ssid><Index>2</Index><WifiEnable>0</WifiEnable><WifiSsid>vividwireless-66AB-2</WifiSsid><WifiMac></WifiMac><WifiBroadcast>0</WifiBroadcast><WifiIsolate>0</WifiIsolate><wifi_max_assoc>32</wifi_max_assoc><WifiAuthmode>WPA2-PSK</WifiAuthmode><WifiBasicencryptionmodes>WEP</WifiBasicencryptionmodes><WifiWpaencryptionmodes>AES</WifiWpaencryptionmodes><WifiWepKeyIndex>1</WifiWepKeyIndex><WifiWpsenbl>1</WifiWpsenbl><WifiWpscfg>0</WifiWpscfg><WifiRotationInterval>60</WifiRotationInterval><WifiAssociatedStationNum>0</WifiAssociatedStationNum><wifitotalswitch>1</wifitotalswitch><wifiguestofftime>0</wifiguestofftime></Ssid><Ssid><Index>3</Index><WifiEnable>0</WifiEnable><WifiSsid>vividwireless-66AB-3</WifiSsid><WifiMac></WifiMac><WifiBroadcast>0</WifiBroadcast><WifiIsolate>0</WifiIsolate><wifi_max_assoc>32</wifi_max_assoc><WifiAuthmode>WPA2-PSK</WifiAuthmode><WifiBasicencryptionmodes>WEP</WifiBasicencryptionmodes><WifiWpaencryptionmodes>AES</WifiWpaencryptionmodes><WifiWepKeyIndex>1</WifiWepKeyIndex><WifiWpsenbl>1</WifiWpsenbl><WifiWpscfg>0</WifiWpscfg><WifiRotationInterval>60</WifiRotationInterval><WifiAssociatedStationNum>0</WifiAssociatedStationNum><wifitotalswitch>1</wifitotalswitch><wifiguestofftime>0</wifiguestofftime></Ssid></Ssids><WifiRestart>1</WifiRestart></request>'
             router.setWifi(token, body, function (error, response) {
                 fw.log("Setting Huawei LTE router Wifi state to " + value + " response: " + response);
                 if (error) fw.log("ERROR - Can't modify Wifi settings, possibly offline? " + error);
@@ -67,7 +70,7 @@ function setWifi(value) {
 
 // Receive a message from the host
 function fromHost(channel, scope, data) {
-    routerCmd(scope, data);
+    routerCmd(scope, data, false);
     //Insert code to manage messages from the host
 }
 

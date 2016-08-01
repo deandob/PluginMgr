@@ -1,5 +1,8 @@
 ﻿"use strict";
 var http = require("http");
+var netState = "down";
+var mBitSec = 0;
+var mByteSec;
 
 function startup() {
     //Insert startup code here
@@ -17,22 +20,42 @@ function pollNet(url) {
             })
             response.on('end', function () {
                 var diff = process.hrtime(startTime);
-                var mBitSec = +(8 / ((diff[0] * 1e9 + diff[1]) * 1e-9)).toFixed(3)
-                var mByteSec = +(1 / ((diff[0] * 1e9 + diff[1]) * 1e-9)).toFixed(3)
-                fw.toHost(fw.channels[0].name, fw.channels[0].units, mBitSec)
-                //fw.log("Internet speed Mbps: " + mBitSec + "Mbit/Sec, Download speed MByte/Sec: "  + mByteSec)
+                mBitSec = +(8 / ((diff[0] * 1e9 + diff[1]) * 1e-9)).toFixed(3)
+                mByteSec = +(1 / ((diff[0] * 1e9 + diff[1]) * 1e-9)).toFixed(3)
+                fw.toHost(fw.channels[0].name, fw.channels[0].units, mBitSec);
+                fw.log("Internet speed Mbps: " + mBitSec + "Mbit/Sec, Download speed MByte/Sec: " + mByteSec)
+                testState();
             });
             response.on('error', function (e) {
                 fw.toHost(fw.channels[0].name, fw.channels[0].units, 0);
+                netState = "down";
+                testState();
                 fw.log("Network error occurred, internet is down. " + e.message);
             });
         }).on('error', function (e) {
             fw.toHost(fw.channels[0].name, fw.channels[0].units, 0);
+            netState = "down";
+            testState();
             fw.log("Network error occurred, internet is down. " + e.message);
         })
     } catch (e) {
+        netState = "down";
+        testState();
         fw.log("Error occurred: " + e.message)
     }
+}
+
+function testState() {
+    if (netState == "down") {
+        if (mBitSec < 0.5) {
+            fw.log("Internet speed < 500kBps for several minutes, network is down.");
+        } else {
+            fw.log("Internet network is up.");
+            netState = "up";
+        }
+        fw.toHost(fw.channels[1].name, fw.channels[0].units, netState);
+    }
+    if (mBitSec < 0.5) netState = "down";                   // might be spurious, give it another poll cycle before sending alert
 }
 
 // Receive a message from the host
