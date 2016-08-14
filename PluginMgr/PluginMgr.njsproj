@@ -84,9 +84,33 @@
     <Folder Include="plugins\utilities\Huawei\" />
     <Folder Include="plugins\weather\" />
     <Folder Include="typings\" />
+    <Folder Include="typings\globals\" />
+    <Folder Include="typings\globals\compression\" />
+    <Folder Include="typings\globals\express\" />
+    <Folder Include="typings\globals\ftp\" />
+    <Folder Include="typings\globals\ini\" />
+    <Folder Include="typings\globals\mime\" />
+    <Folder Include="typings\globals\node\" />
+    <Folder Include="typings\globals\request\" />
+    <Folder Include="typings\globals\serialport\" />
+    <Folder Include="typings\globals\socket.io\" />
+    <Folder Include="typings\globals\ws\" />
+    <Folder Include="typings\globals\xml2js\" />
     <Folder Include="typings\node\" />
   </ItemGroup>
   <ItemGroup>
+    <TypeScriptCompile Include="typings\globals\compression\index.d.ts" />
+    <TypeScriptCompile Include="typings\globals\express\index.d.ts" />
+    <TypeScriptCompile Include="typings\globals\ftp\index.d.ts" />
+    <TypeScriptCompile Include="typings\globals\ini\index.d.ts" />
+    <TypeScriptCompile Include="typings\globals\mime\index.d.ts" />
+    <TypeScriptCompile Include="typings\globals\node\index.d.ts" />
+    <TypeScriptCompile Include="typings\globals\request\index.d.ts" />
+    <TypeScriptCompile Include="typings\globals\serialport\index.d.ts" />
+    <TypeScriptCompile Include="typings\globals\socket.io\index.d.ts" />
+    <TypeScriptCompile Include="typings\globals\ws\index.d.ts" />
+    <TypeScriptCompile Include="typings\globals\xml2js\index.d.ts" />
+    <TypeScriptCompile Include="typings\index.d.ts" />
     <TypeScriptCompile Include="typings\node\node.d.ts" />
     <TypeScriptCompile Include="typings\node\node.d.ts" />
     <TypeScriptCompile Include="typings\node\node.d.ts" />

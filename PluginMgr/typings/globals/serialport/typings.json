@@ -1,0 +1,8 @@
+{
+  "resolution": "main",
+  "tree": {
+    "src": "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/8aa4200da22464f6fccdc629e786abbdcdee71ca/serialport/serialport.d.ts",
+    "raw": "registry:dt/serialport#4.0.1+20160809121754",
+    "typings": "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/8aa4200da22464f6fccdc629e786abbdcdee71ca/serialport/serialport.d.ts"
+  }
+}
