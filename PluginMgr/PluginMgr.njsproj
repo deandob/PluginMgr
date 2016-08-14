@@ -52,6 +52,7 @@
     <Compile Include="plugins\weather\ws2300.js" />
     <Compile Include="PlugMgr old.js" />
     <Compile Include="PlugMgr.js" />
+    <Content Include="nodebat.bat" />
     <Content Include="package.json" />
     <Content Include="plugins\general\IO.ini" />
     <Content Include="plugins\general\SMS.ini" />

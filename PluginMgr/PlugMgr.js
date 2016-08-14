@@ -809,7 +809,7 @@ function startRemote() {
 //////////////// Utilities
 function status(caller, msg) {
     var currDate = new Date();
-    console.log(currDate.getHours() + ":" + currDate.getMinutes() + ":" + currDate.getSeconds() + "." + currDate.getMilliseconds() + "\t[" + caller + "]\t" + msg);
+    console.log(currDate.getHours() + ":" + currDate.getMinutes() + ":" + currDate.getSeconds() + "." + currDate.getMilliseconds() + "\t" + caller.split("/")[0] + "\t" + caller.split("/")[1] + "\t" + msg);
 }
 
 function toLowerKey(obj) {
