@@ -501,7 +501,7 @@ function socketSvr() {
     sockSvr.on("close", function () {
         setTimeout(function () {
             status("SYSTEM/SOCKETS", "Sockets Server closed. Restarting...");
-            sockSvr = server.listen(8124, "homeserver", function () {
+            sockSvr = server.listen(8124, "localhost", function () {
                 status("SYSTEM/SOCKETS", "Sockets Server listening on " + server.address().address + ':' + server.address().port);
             });
         }, 1000);
