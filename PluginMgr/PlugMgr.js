@@ -461,7 +461,7 @@ function MQTTSvr() {
             status("SYSTEM/MQTT", 'MQTT client socket error: ' + err);
         });
     });
-    var sockSvr = server.listen(1883, _serverName, function () {          
+    var sockSvr = server.listen(1883, _serverName, function () {           //TODO: global._serverName istead of hard coding
         status("SYSTEM/MQTT", "MQTT Server listening on " + server.address().address + ':' + server.address().port);
     });
     sockSvr.on("error", function (err) {
@@ -470,7 +470,7 @@ function MQTTSvr() {
     sockSvr.on("close", function () {
         setTimeout(function () {
             status("SYSTEM/MQTT", "MQTT Server closed. Restarting...");
-            sockSvr = server.listen(8124, _serverName, function () {   
+            sockSvr = server.listen(8124, _serverName, function () {   //TODO: global._serverName
                 status("SYSTEM/MQTT", "MQTT Server listening on " + server.address().address + ':' + server.address().port);
             });
         }, 1000);
@@ -501,7 +501,7 @@ function socketSvr() {
     sockSvr.on("close", function () {
         setTimeout(function () {
             status("SYSTEM/SOCKETS", "Sockets Server closed. Restarting...");
-            sockSvr = server.listen(8124, "homeserver", function () {
+            sockSvr = server.listen(8124, _serverName, function () {
                 status("SYSTEM/SOCKETS", "Sockets Server listening on " + server.address().address + ':' + server.address().port);
             });
         }, 1000);
