@@ -42,6 +42,7 @@ function startSession() {
 function getList(dirList) {
     try {
         //session.list(settings["dir"], function (err, list) {
+        fw.log(dirList + " ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
         session.list(dirList, function (err, list) {
             if (err) {
                 fw.log("FTP reading radar directory error: " + err)

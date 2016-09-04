@@ -21,7 +21,7 @@ var grpState = function() {
     this.name = "";
     this.ID = "";
     this.state = "";
-    this.level = 0;
+    this.level = null;
     this.lights = true;
     this.watts = 0;
 }
@@ -55,7 +55,6 @@ function startup() {
 
     serialCBUS.on("open",function() {
         fw.log("Serial port open on " + fw.settings.comport);
-        //debugger
         getTags()
         
         initCBUS();
@@ -64,7 +63,6 @@ function startup() {
     });
         
     serialCBUS.on("data", function (data) {
-        //debugger
         serialRecv(data);
     });
     
@@ -149,8 +147,7 @@ function sendSerial(msg) {
         lastSent = (new Date()).valueOf()
     } else {
         if ((new Date()).valueOf() - lastSent > 1000) sendReady = true;                  // Timeout didn't receive ack from CBUS, reset ready flag 
-        fw.log("Not ready to send, queued: " + sendQ.length);
-        ///XXXXXXXXXXXXXXX'
+        fw.log("Not ready to send, queued: " + sendQ.length);                           // If getting lots of these usually a network problem
     }
     if (sendQ.length > 0) queueTimer = setTimeout(sendSerial, SEND_THROTTLE)    // Still stuff to send, loop with no new message to send old messages
 }
@@ -251,7 +248,6 @@ function sendCBUS(grpNum, newVal, rampTime) {
 // Receive: <Header><originator address><Application><Options><function><group><chkSum><cr>. Same as send except originator is the source ID and can be ignored
 // Confirmation received after the 'g': "." success, "!" checksum fail, "#" too many retransmissions, "$" transmission failed, "%" no system clock. eg. "g." = success
 function serialRecv(data) {
-    //debugger
         var sourceAddr, hexByte, grp, func
 
         if (data.length > 0) {
@@ -359,7 +355,7 @@ function serialRecv(data) {
                                         }
                                         if (grpStates[pairCnt].level !== hexByte) {                     // Only send changes
                                             grpStates[pairCnt].level = hexByte
-                                            fw.toHost(grpStates[pairCnt].name, "value", parseInt(hexByte / 2.5499), false);             // Dont log MMI messages
+                                            fw.toHost(grpStates[pairCnt].name, "value", parseInt(hexByte / 2.5499), true);             // log MMI messages
                                         }
                                     }
                                     pairCnt = pairCnt + 1
