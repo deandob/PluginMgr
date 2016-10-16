@@ -84,40 +84,10 @@ process.on("uncaughtException", function(err) {
 
 var debugPort = 5858;
 var startOpts = {};
-var isInDebugMode = process.execArgv[0].indexOf('--debug') > -1 || process.execArgv[0].indexOf('--debug-brk') > -1;
 
-/*
-var fs = require('fs');
-var lame = require('lame');
-var speaker = require('speaker');
-var count;
-var playing = false;
-var stream = [];
-    count = 0;
-    playSound("Ding - dong - intercom.mp3");
+var isInDebugMode = false;
+if (process.execArgv) isInDebugMode = process.execArgv[0].indexOf('--debug') > -1 || process.execArgv[0].indexOf('--debug-brk') > -1;
 
-function playSound(file) {
-    if (playing === true) return;                                        // ignore multiple commands while playing
-    playing = true;
-    sendToSpeaker(file);
-}
-
-function sendToSpeaker(file) {
-    var mySpeaker = new speaker
-    fs.createReadStream("plugins/SECURITY/" + file)
-        .pipe(new lame.Decoder())
-        .pipe(mySpeaker)
-
-    mySpeaker.on("flush", function () {
-        if (count < +fw.settings.repeat) {
-            setTimeout(sendToSpeaker, 800, file);
-        } else {
-            playing = false;
-        }
-    })
-    count = count + 1;
-}
-*/
 var pluginDir = "plugins";          //TODO: Put into INI file
 function loadPlugins() {
     try {

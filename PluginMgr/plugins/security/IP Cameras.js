@@ -89,18 +89,20 @@ function startFFMPEG(rtsp, recSeg, camName) {
 }
 
 function delFilesDir(dir) {
-    var list = fs.readdirSync(dir);
-    for (var i = 0; i < list.length; i++) {
-        var filename = dir + "/" + list[i];
-        var stat = fs.statSync(filename);
-        if (filename == "." || filename == "..") {
-            // pass these files 
-        } else if (stat.isDirectory()) {
-            // rmdir(filename);
-        } else {
-            fs.unlinkSync(filename);
+    try {
+        var list = fs.readdirSync(dir);
+        for (var i = 0; i < list.length; i++) {
+            var filename = dir + "/" + list[i];
+            var stat = fs.statSync(filename);
+            if (filename == "." || filename == "..") {
+                // pass these files 
+            } else if (stat.isDirectory()) {
+                // rmdir(filename);
+            } else {
+                fs.unlinkSync(filename);
+            }
         }
-    }
+    } catch (e) { }
 }
 
 // Live video stream management for HTML5 video. Uses FFMPEG to connect to H.264 camera stream, 
