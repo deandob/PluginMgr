@@ -84,9 +84,10 @@ process.on("uncaughtException", function(err) {
 
 var debugPort = 5858;
 var startOpts = {};
+process.exitCode = 1;                       // Any exit is bad, so flag it. Node does not seem to set an error code > 0 when exiting with an error
 
 var isInDebugMode = false;
-if (process.execArgv) isInDebugMode = process.execArgv[0].indexOf('--debug') > -1 || process.execArgv[0].indexOf('--debug-brk') > -1;
+if (process.execArgv.length > 0) isInDebugMode = process.execArgv[0].indexOf('--debug') > -1 || process.execArgv[0].indexOf('--debug-brk') > -1;
 
 var pluginDir = "plugins";          //TODO: Put into INI file
 function loadPlugins() {
