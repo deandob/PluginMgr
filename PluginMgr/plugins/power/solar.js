@@ -18,7 +18,7 @@ function startup() {
 }
 
 function startSerialPort() {
-    serialSolar = new com.SerialPort(fw.settings.comport, {
+    serialSolar = new com(fw.settings.comport, {
             baudrate: +fw.settings.baudrate,
             databits: +fw.settings.databits,
             stopbits: +fw.settings.stopbits,

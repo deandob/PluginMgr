@@ -41,14 +41,14 @@ var syncMMI = [{syncMsg: "\\05FF00730738004A", syncRecv: 31},           // Sync 
 // startup function
 function startup() {
     var startStatus = "OK"
-    serialCBUS = new com.SerialPort(fw.settings.comport, {
+    serialCBUS = new com(fw.settings.comport, {
         baudrate: +fw.settings.baudrate,
         databits: +fw.settings.databits,
         stopbits: +fw.settings.stopbits,
         parity: fw.settings.parity,
         buffersize: 255
             //parser: com.parsers.readline('\r\n')
-        }, true, function(err) {
+        }, function(err) {
             if (err) fw.log(err + ". Cannot open CBUS serial port, no lighting functionality available.");
             startStatus = err;
     });

@@ -12,13 +12,13 @@ var intervalTimer;
 // startup function
 function startup() {
     var startStatus = "OK"
-    serialIO = new com.SerialPort("\\\\.\\" + fw.settings.comport, {
+    serialIO = new com("\\\\.\\" + fw.settings.comport, {
         baudrate: +fw.settings.baudrate,
         databits: +fw.settings.databits,
         stopbits: +fw.settings.stopbits,
         parity: fw.settings.parity,
         buffersize: 255,
-    }, true, function (err) {
+    }, function (err) {
         if (err) {
             fw.log(err + ". Cannot open IO serial port, no IO usage functionality available. Restarting in 5 seconds...");
             setTimeout(fw.reset, 5000, 1);

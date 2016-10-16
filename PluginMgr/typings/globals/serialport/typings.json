@@ -1,8 +1,8 @@
 {
   "resolution": "main",
   "tree": {
-    "src": "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/8aa4200da22464f6fccdc629e786abbdcdee71ca/serialport/serialport.d.ts",
-    "raw": "registry:dt/serialport#4.0.1+20160809121754",
-    "typings": "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/8aa4200da22464f6fccdc629e786abbdcdee71ca/serialport/serialport.d.ts"
+    "src": "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/89030200ceb205da4db2fc56d8e750e9c16be92f/serialport/serialport.d.ts",
+    "raw": "registry:dt/serialport#4.0.1+20160915134249",
+    "typings": "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/89030200ceb205da4db2fc56d8e750e9c16be92f/serialport/serialport.d.ts"
   }
 }

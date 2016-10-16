@@ -84,8 +84,40 @@ process.on("uncaughtException", function(err) {
 
 var debugPort = 5858;
 var startOpts = {};
-var isInDebugMode = typeof v8debug === 'object';
+var isInDebugMode = process.execArgv[0].indexOf('--debug') > -1 || process.execArgv[0].indexOf('--debug-brk') > -1;
 
+/*
+var fs = require('fs');
+var lame = require('lame');
+var speaker = require('speaker');
+var count;
+var playing = false;
+var stream = [];
+    count = 0;
+    playSound("Ding - dong - intercom.mp3");
+
+function playSound(file) {
+    if (playing === true) return;                                        // ignore multiple commands while playing
+    playing = true;
+    sendToSpeaker(file);
+}
+
+function sendToSpeaker(file) {
+    var mySpeaker = new speaker
+    fs.createReadStream("plugins/SECURITY/" + file)
+        .pipe(new lame.Decoder())
+        .pipe(mySpeaker)
+
+    mySpeaker.on("flush", function () {
+        if (count < +fw.settings.repeat) {
+            setTimeout(sendToSpeaker, 800, file);
+        } else {
+            playing = false;
+        }
+    })
+    count = count + 1;
+}
+*/
 var pluginDir = "plugins";          //TODO: Put into INI file
 function loadPlugins() {
     try {
@@ -150,9 +182,13 @@ function loadPlugins() {
 // Add plugin and start
 function startPlugin(plug) {
     try {
-        status("SYSTEM/PLUGINS", "Starting child plugin " + plug.className + "...");
         debugPort = debugPort + 1;
-        if (isInDebugMode) startOpts = { execArgv: ['--debug=' + debugPort] };
+        var prtDebug = "";
+        if (isInDebugMode) {
+            startOpts = { execArgv: ['--debug=' + debugPort] };
+            prtDebug = " debugging on port " + debugPort;
+        }
+        status("SYSTEM/PLUGINS", "Starting child plugin " + plug.className + prtDebug + "...");
         plugins.push(plug);        // loaded OK so save plugin cfg (if no config found most of plugincfg is undefined but still valid)
         plugins[plugins.length - 1].recvFunc = fork("./" + path.join(plug.catDir, plug.className + ".js"), [], startOpts);                       // Create child process (13M per plugin) for isolation        
         plugins[plugins.length - 1].recvFunc.on('message', function (msg) { toHost(msg.func, msg.cat, msg.name, msg.channel, msg.scope, msg.data, msg.log); });
@@ -178,7 +214,7 @@ function childEnded(func, pid, param0, param1) {
         }
     }
     if (pluginName !== null) {
-        setTimeout(startPlugin, 3000, plugins.splice(plug, 1)[0])            // remove from plugin array and try again
+        setTimeout(startPlugin, 10000, plugins.splice(plug, 1)[0])            // remove from plugin array and try again
     }
     status("SYSTEM/PLUGINS", "ERROR: Plugin " + pluginName + " ended as '" + func + "' code: " + param0 + " signal: " + param1 + ". Restarting...");
 }
@@ -320,6 +356,10 @@ function webSvr() {
     app.enable('etag')
     app.use(express.static(__dirname + '../../HAWebClient', { maxAge: oneYear }));
     app.use(function (err, req, res, next) {
+        //res.header('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+        //res.header('Expires', '-1');
+        //res.header('Pragma', 'no-cache');
+        //next()
         if (!err) return next();
         status("SYSTEM/HTTP", "Error with processing HTTP request: " + req + " Error: " + err);
         res.send(500, JSON.stringify(err, ['stack', 'message']));

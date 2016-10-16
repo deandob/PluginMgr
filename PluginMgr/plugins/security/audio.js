@@ -20,7 +20,6 @@ function fromHost(channel, scope, data) {
 }
 
 function playSound(file) {
-//    fw.log("audio sound requested " + playing)
     if (playing === true) return;                                        // ignore multiple commands while playing
     fw.log("Playing file: " + file);
     playing = true;

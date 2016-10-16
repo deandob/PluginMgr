@@ -3,7 +3,7 @@
 // Some code adopted from https://github.com/wezm/open2300
 // Flow: Send command bytes to read a memory addess one by one and check each returning value checksum. Once command sent successfully, station sends back data bytes.
 
-var serial = require("serialport").SerialPort
+var serial = require("serialport");
 var serialPort;
 var sendQ = [];
 var MSG_TIMEOUT = 500;
@@ -41,7 +41,7 @@ function startup() {
         databits: parseInt(fw.settings.serialdatabits),
         stopbits: parseInt(fw.settings.serialstopbits),
         parity: fw.settings.serialparity
-        }, true, function(result) {
+        }, function(result) {
             if (result !== undefined) {
                 return "Serial port open error: " + result
             }

@@ -24,14 +24,14 @@ var sensCh = function () {
 // startup function
 function startup() {
     var startStatus = "OK"
-    serialPower = new com.SerialPort("\\\\.\\" + fw.settings.comport, {
+    serialPower = new com("\\\\.\\" + fw.settings.comport, {
             baudrate: +fw.settings.baudrate,
             databits: +fw.settings.databits,
             stopbits: +fw.settings.stopbits,
             parity: fw.settings.parity,
             buffersize: 255,
             parser: com.parsers.readline('\r\n')
-        }, true, function(err) {
+        }, function(err) {
             if (err) fw.log(err + ". Cannot open power serial port, no power usage functionality available.")
             startStatus = err;
     });

@@ -1,2 +1,4 @@
 C:\Users\deandob\Documents\GitHub\PluginMgr\PluginMgr\obj\Debug\PluginMgr.njsprojResolveAssemblyReference.cache
 C:\Users\deandob\Documents\GitHub\PluginMgr\PluginMgr\bin\Microsoft.NodejsTools.WebRole.dll
+C:\Users\deand\Documents\GitHub\PluginMgr\PluginMgr\obj\Debug\PluginMgr.njsprojResolveAssemblyReference.cache
+C:\Users\deand\Documents\GitHub\PluginMgr\PluginMgr\bin\Microsoft.NodejsTools.WebRole.dll
