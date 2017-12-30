@@ -1,6 +1,6 @@
 ﻿"use strict";
 
-// General FTP helper which sets up session with FTP host and makes directory requests
+// General HTTP helper which sets up session with host for retrieving stocks
 var http = require("http");
 
 var started = false;

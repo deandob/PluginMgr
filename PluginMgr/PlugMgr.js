@@ -1,9 +1,6 @@
 // NODE Plugin Manager to load and manage HA plugins
 "use strict";
 
-//FIX: If WS payload is too large (eg. too many video/jpg names to send) the other end drops the connection. Use a better websockets library on .NET.
-
-
 var fs = require("fs");
 var path = require("path");
 var http = require("http");
@@ -296,7 +293,7 @@ function writeIni(category, className, section, subSection, key, value) {
     }
 }
 
-// Process messages from HA engine
+// Process messages from HA engine                      TODO: Change the echo logic to allow multiple messages of the same type but don't echo back to the originating source.
 function pluginMsg(msg) {
     for (var plugNum in plugins) {
         if (plugins[plugNum].className.toUpperCase() === msg.ClassName.toUpperCase()) {
@@ -586,6 +583,7 @@ var WebSocket = require("ws");      // https://github.com/einaros/ws/wiki
 var netState = "starting"
 var msg;
 var user;
+var ws;
 var wsPort = 1067;
 var templMsg = {
     time: Date.now(),               // NEED TO CONVERT TO .NET FORMAT
@@ -749,7 +747,7 @@ function buildJSON(myMsg) {
 }
 
 /////////////////// Manage connections with Azure websockets proxy
-var ws, remWs, locWs;
+var remWs, locWs;
 var wsPortRemote = 80
 var wsPortClient = 1066
 var remoteHost = "HAWSProxy.azurewebsites.net"
@@ -758,7 +756,7 @@ var remClientState = "unconnected"
 startRemote();
 
 function startRemote() {
-    remWs = new WebSocket("ws://" + remoteHost + ":" + wsPortRemote + "/HAServer");
+    remWs = new WebSocket("ws://" + remoteHost + "/host:" + wsPortRemote + "/HAServer");
     try {
         remWs.on("open", function () {
             remoteState = "connected"
@@ -798,8 +796,9 @@ function startRemote() {
         });
         
         remWs.on("error", function (evt) {
-            status("SYSTEM/NETWORK", "Could not establish session with cloud host: " + evt.message);
-            setTimeout(startRemote, 5000);          // Try again after a delay
+            //status("SYSTEM/NETWORK", "Could not establish session with cloud host: " + evt.message);
+            status("SYSTEM/NETWORK", "Could not establish session with cloud host, websocket closed");
+            //setTimeout(startRemote, 5000);          // Try again after a delay
         });
         
         remWs.on("close", function (evt) {
@@ -809,7 +808,7 @@ function startRemote() {
                 status("SYSTEM/NETWORK", "Cloud host network closed: " + evt);
             }
             remoteState = "closed"
-            locWs.close();                          // disconnect local Server session 
+            if (locWs) locWs.close();                          // disconnect local Server session 
             setTimeout(startRemote, 3000);          // Try again after a delay
         });
 

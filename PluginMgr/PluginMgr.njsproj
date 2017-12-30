@@ -38,6 +38,7 @@
     <Compile Include="plugins\lighting\CBUS.js" />
     <Compile Include="plugins\plugintemplate.js" />
     <Compile Include="plugins\power\CurrCost.js" />
+    <Compile Include="plugins\power\smappee.js" />
     <Compile Include="plugins\power\solar.js" />
     <Compile Include="plugins\security\audio.js" />
     <Compile Include="plugins\security\IP Cameras.js" />
@@ -61,6 +62,7 @@
     <Content Include="plugins\general\whatsapp.ini" />
     <Content Include="plugins\lighting\CBUS.ini" />
     <Content Include="plugins\power\CurrCost.ini" />
+    <Content Include="plugins\power\smappee.ini" />
     <Content Include="plugins\power\Solar.ini" />
     <Content Include="plugins\security\audio.ini" />
     <Content Include="plugins\security\IP Cameras.ini" />

@@ -13,7 +13,7 @@
 
 // Comments:
 // Dynamic ramdisk: http://reboot.pro/files/download/284-imdisk-toolkit/
-// command line start for ramdisk: imdisk -a -s 15M -m z: -p "/fs:ntfs /q /y" requires admin privs
+// command line start for ramdisk: imdisk -a -s 15M -m z: -p "/fs:fat /q /y" requires admin privs, use FAT else get system volume information directory permission errors
 
 var http = require( 'http' );
 var child_process = require( "child_process" );
@@ -282,7 +282,7 @@ function checkMotion() {
     var latestMP4 = new Date( 0 )
     var fileArray = []
     fs.readdir( fw.settings.cachepath, function ( err, files ) {
-        if ( err ) return fw.log( "WARNING: No motion files being captured from camera " + cameras[mycam].name )
+        if ( err ) return fw.log( "WARNING: No motion files being captured from camera. Error " + err)
             var fileCnt = 0;
             for ( var i = 0; i < files.length; ++i ) { 
                 ( function ( i ) {
