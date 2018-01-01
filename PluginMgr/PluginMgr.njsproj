@@ -36,6 +36,7 @@
     <Compile Include="plugins\general\stocks.js" />
     <Compile Include="plugins\general\whatsapp.js" />
     <Compile Include="plugins\lighting\CBUS.js" />
+    <Compile Include="plugins\lighting\dynalite.js" />
     <Compile Include="plugins\plugintemplate.js" />
     <Compile Include="plugins\power\CurrCost.js" />
     <Compile Include="plugins\power\smappee.js" />
@@ -61,6 +62,7 @@
     <Content Include="plugins\general\stocks.ini" />
     <Content Include="plugins\general\whatsapp.ini" />
     <Content Include="plugins\lighting\CBUS.ini" />
+    <Content Include="plugins\lighting\dynalite.ini" />
     <Content Include="plugins\power\CurrCost.ini" />
     <Content Include="plugins\power\smappee.ini" />
     <Content Include="plugins\power\Solar.ini" />
