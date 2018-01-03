@@ -1,4 +1,5 @@
-﻿"use strict";
+﻿// Node.js plugin code for XXXXXXXXXX
+"use strict";
 
 function startup() {
     //Insert startup code here

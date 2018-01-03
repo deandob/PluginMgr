@@ -11,7 +11,7 @@ var sensor = function (currVal, oldVal) {
 
 function startup() {
     //Insert startup code here
-    fw.log("Polling " + fw.settings.smappeeip + "/" + fw.settings.webapi + " every " + fw.settings.pollinterval + " seconds")
+    fw.log("Polling " + fw.settings.smappeeip + fw.settings.webapi + " every " + fw.settings.pollinterval + " seconds")
     for (var lp = 0; lp < fw.channels.length; lp++) {
         sensors.push(new sensor(0, -99));
     }
@@ -118,7 +118,7 @@ function getSmappee() {
     } catch (err) {
         fw.log("ERROR - HTTP general connect error: " + err)
     }
-    pollTimer = setTimeout(pollSmappee, +fw.settings.pollinterval * 1000);
+    pollTimer = setTimeout(getSmappee, +fw.settings.pollinterval * 1000);
 }
 
 // Initialize the plugin -------------- DO NOT MODIFY THIS SECTION
