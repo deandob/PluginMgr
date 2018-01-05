@@ -1,5 +1,6 @@
 ﻿"use strict";
 var http = require("http");
+//TODO: IP address changes with DHCP renewals
 
 //var loggedIn = false;
 var pollTimer; 

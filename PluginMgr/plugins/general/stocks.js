@@ -1,59 +1,122 @@
 ﻿"use strict";
 
 // General HTTP helper which sets up session with host for retrieving stocks
-var http = require("http");
-
-var started = false;
+var http = require("https");
 var stockEntries;
 var oldVal = [];
 
 // startup function
 function startup() {
-    stockEntries = fw.settings.stocklist.split("+");
-    return startSession()                   // Return 'OK' only if startup has been successful to ensure startup errors disable plugin
+    for (var lp in fw.channels) {
+        fw.channels[lp].oldval = 0;                                             // Store for old stock value
+        fw.channels[lp].lastTrend = "START"
+    }
+    pollStocks(fw.settings.interval);
+    setInterval(pollStocks, fw.settings.interval * 60000);                      // Recurring poll API according to interval
+    return "OK"                   // Return 'OK' only if startup has been successful to ensure startup errors disable plugin
 }
 
-function startSession() {
+function pollStocks(interval) {
+    for (var stock in fw.channels) {
+        var name = fw.channels[stock].name;
+        var path = fw.settings.stockapi + "?function=TIME_SERIES_INTRADAY&symbol=" + name + "&interval=" + interval + "min&apikey=" + fw.settings.key;
+        if (fw.channels[stock].attribs[0].name.toUpperCase() === "FX") {
+            path = fw.settings.stockapi + "?function=CURRENCY_EXCHANGE_RATE&from_currency=" + name + "&to_currency=" + fw.channels[stock].attribs[0].value + "&apikey=" + fw.settings.key;
+        } else {
+            if (fw.channels[stock].attribs[0].value.toUpperCase() !== "NASDAQ") name = name + "." + fw.channels[stock].attribs[0].value.toUpperCase();            // Add foreign exhange suffix
+        }
+        setTimeout(getStock, stock * 1000, name, interval, stock, path);            // Don't swamp the API server, make calls once a second.
+    }
+}
+
+// Format of Alphavantage JSON:
+/* "Meta Data": {
+    "1. Information": "Intraday (1min) prices and volumes",
+    "2. Symbol": "MSFT",
+    "3. Last Refreshed": "2018-01-04 16:00:00",
+    "4. Interval": "1min",
+    "5. Output Size": "Compact",
+    "6. Time Zone": "US/Eastern"
+},
+"Time Series (1min)": {
+    "2018-01-04 16:00:00": {
+        "1. open": "87.1150",
+        "2. high": "87.1200",
+        "3. low": "87.0200",
+        "4. close": "87.1100",
+        "5. volume": "2412318"
+    },
+"Time Series (1min)": {
+.... */
+function getStock(stock, interval, stockIndex, path) {
     try {
         var options = {
             hostname: fw.settings.stockserver,
-            port: 80,
-            path: fw.settings.stockapi + "?s=" + fw.settings.stocklist + "&f=" + fw.settings.options,
-            //headers: {'user-agent': 'Mozilla/5.0'},
+            port: 443,
+            path: path,
             method: 'GET'
         };
+        if (fw.settings.debug) fw.log("Polling web service for " + stock + " Path: " + path);
 
         http.get(options, function (res) {
-            var csvData = "";
+            var httpData = "";
             res.setEncoding('utf8');
-            res.on('data', function (chunk) {csvData += chunk;});
+            res.on('data', function (chunk) {httpData += chunk;});
             res.on('end', function () {
-                                     // Completed retreive CSV file
-                var stocks = csvData.split("\n");                           // Get each record
-                for (var stock in stocks) {
-                    if (stocks[stock] !== "") {
-                        var stockFields = stocks[+stock].split(",");               // Get fields
-                        if (!started) {                                             // Run first time, create channel with description from CSV returned
-                            fw.addChannel(stockEntries[+stock].split(".")[0], stockFields[0].replace(/\"/g, ''), "stock", "output", 0, 1000, "dollars", []);
+                if (fw.settings.debug) fw.log("From API: " + httpData);
+                var ret = JSON.parse(httpData);
+                if (!ret["Error Message"]) {
+                    var list = ret["Time Series (" + interval + "min)"];
+                    if (list) {
+                        var first;
+                        for (var key in list) {
+                            first = list[key];                                  // First entry is the latest price
+                            break;
                         }
-                        if (stockFields[1] !== "N/A" && stockFields[1] !== oldVal[+stock]) {            // Send only valid and changed data to host
-                            fw.toHost(stockEntries[+stock].split(".")[0], "BUY", stockFields[1]);
-                            oldVal[+stock] = stockFields[1];
+                        if (first) {
+                            update(stock, stockIndex, Number(first["4. close"]));
+                        } else {
+                            fw.log("Format error (Time Series entry) with stock quote for " + stock + ". Data returned: " + httpData);
+                        }
+                    } else {
+                        var exch = ret["Realtime Currency Exchange Rate"];
+                        if (exch) {
+                                update(stock, stockIndex, Number(exch["5. Exchange Rate"]));
+                        } else {
+                            fw.log("Format error (Time Series object) with stock quote for " + stock + ". Data returned: " + httpData);
                         }
                     }
+                } else {
+                    fw.log("Can't retrieve stock quote for " + stock + ", check stock ticker. Error: " + ret["Error Message"]);
                 }
-                started = true;
             });
         }).on('error', function (e) {
             console.log("HTTP error: " + e.message);
         });
-        setTimeout(startSession, fw.settings.pollinterval * 60000);         // try reconnecting after 3 seconds
-        return "OK"
     } catch(err) {
         fw.log("HTTP general connect error: " + err)
-        setTimeout(startSession, fw.settings.errortimeout * 60000);         // try reconnecting after 3 seconds
         return err;
     }
+}
+
+// Format update and send to host
+function update(stock, stockIndex, value) {
+    var trend = "UNCH";
+    if (value !== fw.channels[stockIndex].oldVal) {     // Price change
+        if (value > fw.channels[stockIndex].oldVal)
+            trend = "INC";
+        if (value < fw.channels[stockIndex].oldVal)
+            trend = "DEC";
+        if (fw.channels[stockIndex].lastTrend = "START")
+            trend = "UNCH"                                                          // Trend state is unchanged when first running (don't know previous price)
+        fw.toHost(stock, trend, value);
+        fw.channels[stockIndex].oldVal = value;
+    } else {
+        if (fw.channels[stockIndex].lastTrend !== "UNCH") {
+            fw.toHost(stock, trend, value);                                        // change trend state even if price is unchanged
+        }
+    }
+    fw.channels[stockIndex].lastTrend = trend;
 }
 
 // Process host messages
