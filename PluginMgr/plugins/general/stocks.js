@@ -12,7 +12,7 @@ function startup() {
         fw.channels[lp].lastTrend = "START"
     }
     pollStocks(fw.settings.interval);
-    setInterval(pollStocks, fw.settings.interval * 60000);                      // Recurring poll API according to interval
+    setInterval(pollStocks, fw.settings.interval * 60000, fw.settings.interval);                      // Recurring poll API according to interval
     return "OK"                   // Return 'OK' only if startup has been successful to ensure startup errors disable plugin
 }
 
