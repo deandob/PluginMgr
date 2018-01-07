@@ -19,13 +19,21 @@ function startup() {
 function pollStocks(interval) {
     for (var stock in fw.channels) {
         var name = fw.channels[stock].name;
-        var path = fw.settings.stockapi + "?function=TIME_SERIES_INTRADAY&symbol=" + name + "&interval=" + interval + "min&apikey=" + fw.settings.key;
-        if (fw.channels[stock].attribs[0].name.toUpperCase() === "FX") {
-            path = fw.settings.stockapi + "?function=CURRENCY_EXCHANGE_RATE&from_currency=" + name + "&to_currency=" + fw.channels[stock].attribs[0].value + "&apikey=" + fw.settings.key;
-        } else {
-            if (fw.channels[stock].attribs[0].value.toUpperCase() !== "NASDAQ") name = name + "." + fw.channels[stock].attribs[0].value.toUpperCase();            // Add foreign exhange suffix
+        var path = "";
+        var series = fw.channels[stock].attribs[0].name.toUpperCase();
+        switch (series) {
+            case "FX":
+                path = fw.settings.stockapi + "?function=CURRENCY_EXCHANGE_RATE&from_currency=" + name + "&to_currency=" + fw.channels[stock].attribs[0].value + "&apikey=" + fw.settings.key;
+                if (fw.channels[stock].attribs[0].value.toUpperCase() !== "NASDAQ") name = name + "." + fw.channels[stock].attribs[0].value.toUpperCase();            // Add foreign exhange suffix
+                break;
+            case "CY":
+                path = fw.settings.stockapi + "?function=DIGITAL_CURRENCY_INTRADAY&symbol=" + name + "&market=USD&apikey=" + fw.settings.key;
+                break;
+            case "EXCHANGE":
+                path = fw.settings.stockapi + "?function=TIME_SERIES_INTRADAY&symbol=" + name + "&interval=" + interval + "min&apikey=" + fw.settings.key;
+                break;
         }
-        setTimeout(getStock, stock * 1000, name, interval, stock, path);            // Don't swamp the API server, make calls once a second.
+        setTimeout(getStock, stock * 1000, name, interval, stock, path, series);            // Don't swamp the API server, make calls once a second.
     }
 }
 
@@ -48,7 +56,7 @@ function pollStocks(interval) {
     },
 "Time Series (1min)": {
 .... */
-function getStock(stock, interval, stockIndex, path) {
+function getStock(stock, interval, stockIndex, path, series) {
     try {
         var options = {
             hostname: fw.settings.stockserver,
@@ -66,25 +74,49 @@ function getStock(stock, interval, stockIndex, path) {
                 if (fw.settings.debug) fw.log("From API: " + httpData);
                 var ret = JSON.parse(httpData);
                 if (!ret["Error Message"]) {
-                    var list = ret["Time Series (" + interval + "min)"];
-                    if (list) {
-                        var first;
-                        for (var key in list) {
-                            first = list[key];                                  // First entry is the latest price
-                            break;
-                        }
-                        if (first) {
-                            update(stock, stockIndex, Number(first["4. close"]));
-                        } else {
-                            fw.log("Format error (Time Series entry) with stock quote for " + stock + ". Data returned: " + httpData);
-                        }
-                    } else {
-                        var exch = ret["Realtime Currency Exchange Rate"];
-                        if (exch) {
+                    switch (series) {
+                        case "FX":
+                            var exch = ret["Realtime Currency Exchange Rate"];
+                            if (exch) {
                                 update(stock, stockIndex, Number(exch["5. Exchange Rate"]));
-                        } else {
-                            fw.log("Format error (Time Series object) with stock quote for " + stock + ". Data returned: " + httpData);
-                        }
+                            } else {
+                                fw.log("Format error (Time Series object) with stock quote for " + stock + ". Data returned: " + httpData);
+                            }
+                            break;
+                        case "CY":
+                            var list = ret["Time Series (Digital Currency Intraday)"];
+                            if (list) {
+                                var first;
+                                for (var key in list) {
+                                    first = list[key];                                  // First entry is the latest price
+                                    break;
+                                }
+                                if (first) {
+                                    update(stock, stockIndex, Number(first["1a. price (USD)"]));
+                                } else {
+                                    fw.log("Format error (Time Series entry) with cyber quote for " + stock + ". Data returned: " + httpData);
+                                }
+                            } else {
+                                fw.log("Format error (Time Series object) with cyber quote for " + stock + ". Data returned: " + httpData);
+                            }
+                            break;
+                        case "EXCHANGE":
+                            var list = ret["Time Series (" + interval + "min)"];
+                            if (list) {
+                                var first;
+                                for (var key in list) {
+                                    first = list[key];                                  // First entry is the latest price
+                                    break;
+                                }
+                                if (first) {
+                                    update(stock, stockIndex, Number(first["4. close"]));
+                                } else {
+                                    fw.log("Format error (Time Series entry) with stock quote for " + stock + ". Data returned: " + httpData);
+                                }
+                            } else {
+                                fw.log("Format error (Time Series object) with stock quote for " + stock + ". Data returned: " + httpData);
+                            }
+                            break;
                     }
                 } else {
                     fw.log("Can't retrieve stock quote for " + stock + ", check stock ticker. Error: " + ret["Error Message"]);
