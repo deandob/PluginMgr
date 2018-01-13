@@ -1,6 +1,7 @@
 ﻿// Node.js plugin code for XXXXXXXXXX
 "use strict";
 
+// Run when plugin initialised
 function startup() {
     //Insert startup code here
     return "OK"                                                     // Return 'OK' only if startup has been successful to ensure startup errors disable plugin

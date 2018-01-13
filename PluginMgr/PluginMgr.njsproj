@@ -35,6 +35,7 @@
     <Compile Include="plugins\general\sensors.js" />
     <Compile Include="plugins\general\stocks.js" />
     <Compile Include="plugins\general\whatsapp.js" />
+    <Compile Include="plugins\HVAC\advantageair.js" />
     <Compile Include="plugins\lighting\CBUS.js" />
     <Compile Include="plugins\lighting\dynalite.js" />
     <Compile Include="plugins\plugintemplate.js" />
@@ -62,6 +63,7 @@
     <Content Include="plugins\general\sensors.ini" />
     <Content Include="plugins\general\stocks.ini" />
     <Content Include="plugins\general\whatsapp.ini" />
+    <Content Include="plugins\HVAC\advantageair.ini" />
     <Content Include="plugins\lighting\CBUS.ini" />
     <Content Include="plugins\lighting\dynalite.ini" />
     <Content Include="plugins\power\CurrCost.ini" />
@@ -84,6 +86,7 @@
     <Folder Include="plugins\" />
     <Folder Include="plugins\lighting\" />
     <Folder Include="plugins\general\" />
+    <Folder Include="plugins\HVAC\" />
     <Folder Include="plugins\power\" />
     <Folder Include="plugins\security\" />
     <Folder Include="plugins\utilities\" />

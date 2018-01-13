@@ -9,32 +9,32 @@ var waitingForList = null;
 function startup() {
     try {
         session = new ftp();
-        session.on('ready', function () {       // setup callback once session is connected
+        session.on('ready', function () {                                   // setup callback once session is connected
             fw.log("Connected to FTP host " + session.options.host)
-            if (waitingForList !== null) getList(waitingForList)        // if an earlier message was sent but session was down, send the request now. 
+            if (waitingForList !== null) getList(waitingForList)            // if an earlier message was sent but session was down, send the request now. 
         });
         session.on("error", function (err) {
             fw.log("FTP session error: " + err)
-            setTimeout(startSession, 3000);         // try reconnecting after 3 seconds
+            setTimeout(startSession, 3000);                                 // try reconnecting after 3 seconds
             return err;
         });
-        return startSession()                   // Return 'OK' only if startup has been successful to ensure startup errors disable plugin
+        return startSession()                                               // Return 'OK' only if startup has been successful to ensure startup errors disable plugin
     } catch(err) {
         fw.log("FTP general error: " + err)
-        setTimeout(startSession, 3000);         // try reconnecting after 3 seconds
+        setTimeout(startSession, 3000);                                     // try reconnecting after 3 seconds
         return err;
     }
 }
 
 function startSession() {
     try {
-        if (!session.connected) session.connect({                   // create a session with the FTP host
+        if (!session.connected) session.connect({                           // create a session with the FTP host
             host: fw.settings["ftpserver"]
         });
         return "OK"
     } catch(err) {
         fw.log("FTP general connect error: " + err)
-        setTimeout(startSession, 3000);         // try reconnecting after 3 seconds
+        setTimeout(startSession, 3000);                                     // try reconnecting after 3 seconds
         return err;
     }
 }
@@ -55,6 +55,7 @@ function getList(dirList) {
             } else {
                 try {
                     if (list.length > 0) {
+                        fw.log("SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS")
                         fw.toHost(fw.channels[0].name, fw.channels[0].units, JSON.stringify(list), false)       // send directory listing back to the host
                         fw.log("Directory List retrieved - " + dirList)
                         waitingForList = null;

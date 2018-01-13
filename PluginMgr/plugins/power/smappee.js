@@ -3,7 +3,7 @@ var http = require("http");
 //TODO: IP address changes with DHCP renewals
 
 //var loggedIn = false;
-var pollTimer; 
+var pollTimer;
 var sensors = [];
 var sensor = function (currVal, oldVal) {
     this.currVal = currVal;
@@ -43,16 +43,18 @@ function logon(password) {
                 'Content-Length': Buffer.byteLength(password)
             }
         };
-        
+
+        if (fw.settings.debug) fw.log("Logging into SMAPPEE local server...");
+
         var httpPost = http.request(options, function (res) {
             if (res.statusCode == "200") {
                 var httpData = "";
 
                 res.on('data', function (chunk) { httpData += chunk; });
 
-                res.on('end', function () {                                                     // Completed retreive
-                    if (String(fw.settings.debug) === "true") fw.log("SMAPPEE logon result: " + httpData);
-                    getSmappee();                                                               // Start polling for data
+                res.on('end', function () {                                                                             // Completed retreive
+                    if (fw.settings.debug) fw.log("SMAPPEE logon result: " + httpData);
+                    getSmappeeJSON(fw.settings.postdata);                                                               // Start polling for data
                     return;
                 });
             } else {
@@ -63,7 +65,7 @@ function logon(password) {
         }).on('error', function (e) {
             fw.log("ERROR - HTTP error with Smappee logon: " + e.message + ". Check if IP address " + fw.settings.smappeeip + " is correct or if Smappee is offline");
             setTimeout(logon, 5000, password);
-            });
+        });
         httpPost.write(password);
         httpPost.end();
     } catch (err) {
@@ -72,6 +74,60 @@ function logon(password) {
     }
 }
 
+//TODO: Quicker to load from JSON using http://192.168.0.113/gateway/apipublic/instantaneous see https://github.com/gornialberto/SmappeeCore/blob/master/SmappeeCore/SmappeeExpertClient.cs
+// Poll gateway API to retrieve sensor values
+function getSmappeeJSON(postData) {
+    try {
+        var options = {
+            hostname: fw.settings.smappeeip,
+            port: 80,
+            path: fw.settings.jsonapi,
+            method: 'POST',
+            headers: {
+                'Content-Length': Buffer.byteLength(postData)
+            }
+        };
+
+        var httpPost = http.request(options, function (res) {
+            if (res.statusCode == "200") {
+                var httpData = "";
+
+                res.on('data', function (chunk) { httpData += chunk; });
+
+                res.on('end', function () {                                                     // Completed retreive
+                    if (fw.settings.debug) fw.log("SMAPPEE data result: " + httpData);
+                    var kvPair = JSON.parse(httpData);
+                        setPower(0, parseInt(kvPair[1].value / 1000), httpData);
+                        setPower(1, parseInt(kvPair[4].value / 1000), httpData);                    
+                        setPower(2, parseInt(kvPair[7].value / 1000), httpData);                    
+                });
+            } else {
+                fw.log("ERROR - Can't retrieve smappee logs, suspect URL is specified incorrectly, check JSONAPI settings in INI file");
+            }
+            res.resume();
+        }).on('error', function (e) {
+            fw.log("ERROR - HTTP error connecting to Smappee: " + e.message + ". Check if IP address " + fw.settings.smappeeip + " is correct or if Smappee is offline");
+        });
+        httpPost.write(postData);
+        httpPost.end();
+    } catch (err) {
+        fw.log("ERROR - HTTP general connect error: " + err)
+    }
+    pollTimer = setTimeout(getSmappeeJSON, +fw.settings.pollinterval * 1000, postData);
+}
+
+function setPower(index, value, httpData) {
+    if (value) {
+        if (fw.settings.debug) fw.log("Phase " + index + " " + value);
+        if (value > (sensors[index].oldVal + Number(fw.settings.changetol)) || value < (sensors[index].oldVal - Number(fw.settings.changetol)))
+            fw.toHost(fw.channels[index].name, "W", value);                                         // send to host if change > threshold
+        sensors[index].oldVal = value;
+    } else {
+        fw.log("ERROR - Problem with the format of the data returned from SMAPPEE, check for format errors: " + httpData);
+    }
+}
+
+/*
 // Poll gateway API to retrieve sensor values
 function getSmappee() {
     try {
@@ -81,6 +137,7 @@ function getSmappee() {
             path: fw.settings.webapi,
             method: 'GET'
         };
+        if (fw.settings.debug) fw.log("Polling smappee...")
         http.get(options, function (res) {
             if (res.statusCode == "404") {
                 fw.log("ERROR - Can't retrieve smappee logs, suspect URL is specified incorrectly, check webAPI settings in INI file");
@@ -90,7 +147,7 @@ function getSmappee() {
 
                 res.on('end', function () {                                                                 // Completed retreive
                     var phases = httpData.split("Phase ");
-                    if (String(fw.settings.debug) === "true") fw.log("SMAPPEE data " + httpData);
+                    if (fw.settings.debug) fw.log("SMAPPEE data " + httpData);
                     if (phases.length === 1) {
                         fw.log("WARNING - Incorrect string returned, likely not logged in. Retrying logon.");
                         logon(fw.settings.password);
@@ -99,7 +156,7 @@ function getSmappee() {
                         for (var phase = 1; phase < phases.length; phase++) {
                             if (phases[phase] !== "") {
                                 var splitPower = phases[phase].split("activePower=");
-
+                                //if (fw.settings.debug) fw.log("Splitpower " + splitPower[1])
                                 if (splitPower.length > 1) {                                                // Data exists
                                     var index = phase - 1;
                                     sensors[index].currVal = splitPower[1].split(" W")[0];
@@ -121,6 +178,7 @@ function getSmappee() {
     }
     pollTimer = setTimeout(getSmappee, +fw.settings.pollinterval * 1000);
 }
+*/
 
 // Initialize the plugin -------------- DO NOT MODIFY THIS SECTION
 var fw = new Object();
